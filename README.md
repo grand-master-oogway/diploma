@@ -1,3 +1,3 @@
 # Інформаційна технологія автоматизованого збору, обробки та інтелектуального аналізу геопросторових даних
 
-![alt text](stuff/general_plan_describing.png "Title")
+![alt text](images\general_plan_describing.png "Title")
