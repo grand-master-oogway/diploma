@@ -9,7 +9,7 @@ from pathlib import Path
 
 import polars as pl
 
-from firms_ua.datacatalog import FirmsBronze
+from firms_ua.datacatalog.bronze import FirmsBronze
 from firms_ua.firms_client import FirmsResponse
 from firms_ua.windows import Window
 

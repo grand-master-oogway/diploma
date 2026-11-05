@@ -7,7 +7,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from logger import configure_logging
+from logger.config import configure_logging
 
 
 @pytest.fixture(autouse=True)

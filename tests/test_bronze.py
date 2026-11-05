@@ -10,8 +10,8 @@ import pytest
 import responses
 
 from firms_ua.bronze import is_ingested, to_bronze_frame, write_bronze
-from firms_ua.datacatalog import FirmsBronze, SchemaError
-from firms_ua.errors import FirmsError
+from firms_ua.datacatalog.bronze import FirmsBronze
+from firms_ua.errors import FirmsError, SchemaError
 from firms_ua.firms_client import fetch
 from firms_ua.windows import Window
 

@@ -11,7 +11,7 @@ from firms_ua.bronze import is_ingested, write_bronze
 from firms_ua.firms_client import fetch
 from firms_ua.settings import Settings
 from firms_ua.windows import plan_windows
-from logger import configure_logging
+from logger.config import configure_logging
 
 log = logging.getLogger(__name__)
 

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import requests
 
-from firms_ua.datacatalog import FirmsBronze
+from firms_ua.datacatalog.bronze import FirmsBronze
 from firms_ua.errors import FirmsError
 from firms_ua.windows import Window
 

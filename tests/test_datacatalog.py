@@ -5,7 +5,9 @@ Tests for table definitions.
 import polars as pl
 import pytest
 
-from firms_ua.datacatalog import Column, FirmsBronze, SchemaError, Table
+from firms_ua.datacatalog.base import Column, Table
+from firms_ua.datacatalog.bronze import FirmsBronze
+from firms_ua.errors import SchemaError
 
 
 class Demo(Table):
