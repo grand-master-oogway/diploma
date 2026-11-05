@@ -1,11 +1,15 @@
-"""Environment-driven settings."""
+"""
+Environment-driven settings.
+"""
 
 from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Runtime configuration read from environment / `.env`."""
+    """
+    Runtime configuration read from environment / `.env`.
+    """
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="FIRMS_", extra="ignore")
 

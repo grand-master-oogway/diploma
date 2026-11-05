@@ -1,4 +1,6 @@
-"""FIRMS area API client."""
+"""
+FIRMS area API client.
+"""
 
 import logging
 import random
@@ -21,12 +23,16 @@ EXPECTED_COLUMNS = frozenset(
 
 
 class FirmsError(Exception):
-    """Non-retryable FIRMS failure."""
+    """
+    Non-retryable FIRMS failure.
+    """
 
 
 @dataclass(frozen=True)
 class FirmsResponse:
-    """Raw API response; `content` is unchanged bytes."""
+    """
+    Raw API response; `content` is unchanged bytes.
+    """
 
     content: bytes
     status: int
@@ -37,19 +43,24 @@ class FirmsResponse:
 # TODO decide which exact data it should fetch, sp - standart processing or nrt - near real-time
 # sp and nrt can override each other and itshould be handled somehow
 def build_url(key: str, window: Window, bbox: tuple[float, float, float, float]) -> str:
-    """Build the area URL (contains the secret key; never log it)."""
+    """
+    Build the area URL (contains the secret key; never log it).
+    """
     area = ",".join(str(v) for v in bbox)
     return f"{BASE_URL}/{key}/{window.source}/{area}/{window.day_range}/{window.start:%Y-%m-%d}"
 
 
 # TODO handle it via key vaults in gcp
 def redact(url: str, key: str) -> str:
-    """Replace the MAP_KEY in `url`."""
+    """
+    Replace the MAP_KEY in `url`.
+    """
     return url.replace(key, "***")
 
 
 def validate_csv(content: bytes) -> int:
-    """Check the header row and return the data row count.
+    """
+    Check the header row and return the data row count.
 
     Raises:
         FirmsError: If the body is not a FIRMS CSV (a 200 may carry an error message).
@@ -76,7 +87,9 @@ def fetch(
     max_retries: int = 5,
     session: requests.Session | None = None,
 ) -> FirmsResponse:
-    """Fetch one window, retrying only network errors, 429 and 5xx."""
+    """
+    Fetch one window, retrying only network errors, 429 and 5xx.
+    """
     http = session or requests.Session()
     url = build_url(key, window, bbox)
     safe = redact(url, key)
