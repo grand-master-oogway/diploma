@@ -1,0 +1,34 @@
+[project]
+name = "firms-ua"
+version = "0.1.0"
+description = "NASA FIRMS VIIRS pipeline for Ukraine (medallion on GCS)"
+requires-python = ">=3.14"
+dependencies = [
+    "requests>=2.32",
+    "duckdb>=1.1",
+    "pydantic-settings>=2.5",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.7", "responses>=0.25"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/firms_ua"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "D"]
+ignore = ["D203", "D213"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,56 @@
+name: terraform
+
+on:
+  pull_request:
+    paths: ["infra/**", ".github/workflows/terraform.yml"]
+
+permissions:
+  contents: read
+  id-token: write # Workload Identity Federation
+
+env:
+  TF_VERSION: "1.9.8"
+  ENV_DIR: infra/envs/dev
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - run: terraform fmt -check -recursive infra
+      - name: Validate
+        working-directory: ${{ env.ENV_DIR }}
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+      - uses: terraform-linters/setup-tflint@v4
+      - name: tflint
+        run: |
+          tflint --init
+          tflint --recursive
+
+  plan:
+    # Needs repository variables WIF_PROVIDER, WIF_SERVICE_ACCOUNT, TF_STATE_BUCKET, GCP_PROJECT_ID.
+    # Skipped until the one-time bootstrap in infra/README.md is done. Apply is never run from CI.
+    needs: validate
+    if: vars.WIF_PROVIDER != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+      - name: Plan
+        working-directory: ${{ env.ENV_DIR }}
+        env:
+          TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          terraform plan -input=false -lock-timeout=60s
