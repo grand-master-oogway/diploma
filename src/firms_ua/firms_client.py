@@ -9,23 +9,14 @@ from dataclasses import dataclass
 
 import requests
 
+from firms_ua.datacatalog import FirmsBronze
+from firms_ua.errors import FirmsError
 from firms_ua.windows import Window
 
 log = logging.getLogger(__name__)
 
 BASE_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
-EXPECTED_COLUMNS = frozenset(
-    {
-        "latitude", "longitude", "bright_ti4", "scan", "track", "acq_date", "acq_time",
-        "satellite", "confidence", "bright_ti5", "frp", "daynight",
-    }
-)  # fmt: skip
-
-
-class FirmsError(Exception):
-    """
-    Non-retryable FIRMS failure.
-    """
+EXPECTED_COLUMNS = frozenset(FirmsBronze.raw_column_names())
 
 
 @dataclass(frozen=True)

@@ -29,7 +29,7 @@ E2E pipeline: NASA FIRMS VIIRS detections over Ukraine -> Parquet medallion (bro
 | # | Phase | Status | Where |
 |---|---|---|---|
 | 1 | Foundation (pyproject, ruff, pytest, settings) | done | `pyproject.toml`, `src/firms_ua/settings.py` |
-| 2 | Bronze (client, window planner, raw writer, CLI); fetches the Ukraine bbox only because the API has no polygon filter, strict Ukraine-boundary clip happens in silver | done, local only | `src/firms_ua/{firms_client,windows,bronze,cli}.py` |
+| 2 | Bronze: FIRMS CSV -> all-string Parquet (+lineage columns) + manifest via Polars; table layout declared in `datacatalog`; API can only fetch the Ukraine bbox, strict boundary clip happens in silver | done, local only | `src/firms_ua/{firms_client,windows,bronze,cli}.py`, `src/firms_ua/datacatalog/`, `src/logger/` |
 | 3 | Silver (typed, clip, flags, dedupe, H3) | next | - |
 | 4 | Gold (H3 x period grid, features, snapshots) | todo | - |
 | 5 | DuckDB query layer over `gs://` | todo | - |
@@ -50,7 +50,8 @@ E2E pipeline: NASA FIRMS VIIRS detections over Ukraine -> Parquet medallion (bro
 
 ## Layout
 ```
-src/firms_ua/     pure logic (settings, windows, firms_client, bronze, cli)
+src/firms_ua/     pure logic (settings, windows, firms_client, bronze, cli, datacatalog/ table definitions)
+src/logger/       console-only logging config, top-level so every package can use it
 tests/            pytest, no network
 infra/            modules/{storage,iam,secrets}, envs/dev; README has bootstrap steps
 .github/workflows ci.yml, terraform.yml

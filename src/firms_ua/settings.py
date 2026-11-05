@@ -20,3 +20,4 @@ class Settings(BaseSettings):
     bbox: tuple[float, float, float, float] = (22.1, 44.4, 40.2, 52.4)
     request_timeout_s: float = 60.0
     max_retries: int = 5
+    log_level: str = "INFO"

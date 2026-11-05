@@ -5,11 +5,14 @@ Tests for client validation and bronze writer (no network).
 import re
 from datetime import UTC, date, datetime
 
+import polars as pl
 import pytest
 import responses
 
-from firms_ua.bronze import is_ingested, write_bronze
-from firms_ua.firms_client import FirmsError, fetch
+from firms_ua.bronze import is_ingested, to_bronze_frame, write_bronze
+from firms_ua.datacatalog import FirmsBronze, SchemaError
+from firms_ua.errors import FirmsError
+from firms_ua.firms_client import fetch
 from firms_ua.windows import Window
 
 HEADER = "latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight\n"
@@ -22,16 +25,44 @@ ANY = re.compile(r".*")
 @responses.activate
 def test_fetch_and_write_keeps_bytes(tmp_path) -> None:
     """
-    Raw bytes survive; the key never reaches the manifest.
+    Values survive as strings, lineage is in the file, the key is never written.
     """
     responses.add(responses.GET, ANY, body=HEADER + ROW)
     resp = fetch("SECRETKEY", W, BBOX, max_retries=0)
     assert resp.row_count == 1
     assert "SECRETKEY" not in resp.url_redacted
-    out = write_bronze(tmp_path, W, resp, BBOX, datetime(2024, 3, 2, tzinfo=UTC))
-    assert (out / "data.csv").read_bytes() == (HEADER + ROW).encode()
-    assert "SECRETKEY" not in (out / "manifest.json").read_text()
+    out = write_bronze(tmp_path, W, resp, datetime(2024, 3, 2, tzinfo=UTC))
+    assert out.suffix == ".parquet"
+    assert list(tmp_path.rglob("*.json")) == []  # no manifest
     assert is_ingested(tmp_path, W)
+
+    df = pl.read_parquet(out)
+    FirmsBronze.validate(df)
+    assert df["acq_time"].to_list() == ["0007"]  # no parsing in bronze
+    assert df["day_range"].to_list() == [1]
+    assert df["start_date"].to_list() == [date(2024, 3, 1)]
+    # epoch compare: converting tz-aware values to Python needs tzdata, which Windows lacks
+    assert df["requested_at"].dt.epoch("us").to_list() == [int(datetime(2024, 3, 2, tzinfo=UTC).timestamp() * 1_000_000)]
+    assert "SECRETKEY" not in out.read_bytes().decode("latin-1")
+
+
+def test_unpadded_time_and_empty_frame_keep_schema() -> None:
+    """
+    Values stay strings as sent, and a header-only CSV gives a valid empty frame.
+    """
+    ts = datetime(2024, 3, 2, tzinfo=UTC)
+    row = ROW.replace(",0007,", ",34,")
+    assert to_bronze_frame((HEADER + row).encode(), W, ts)["acq_time"].to_list() == ["34"]
+    assert to_bronze_frame(HEADER.encode(), W, ts).height == 0
+
+
+def test_unknown_column_fails_loudly() -> None:
+    """
+    An unexpected API column is not silently dropped.
+    """
+    csv = HEADER.replace("daynight", "daynight,type") + ROW.rstrip("\n") + ",0\n"
+    with pytest.raises(SchemaError, match="unexpected columns"):
+        to_bronze_frame(csv.encode(), W, datetime(2024, 3, 2, tzinfo=UTC))
 
 
 @responses.activate
