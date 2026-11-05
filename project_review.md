@@ -10,7 +10,8 @@ E2E pipeline: NASA FIRMS VIIRS detections over Ukraine -> Parquet medallion (bro
 | Topic | Decision |
 |---|---|
 | Cloud | GCP |
-| Query engine | DuckDB (the only compute engine; no Polars) |
+| Processing engine | Polars for all transforms (fetch -> bronze -> silver -> gold, writes Parquet) |
+| Query engine | DuckDB, read-only over the Parquet in buckets (views, ad-hoc SQL); never writes the layers |
 | Orchestrator | Dagster |
 | Compute | single Compute Engine VM, Docker Compose (Dagster + MLflow) |
 | Python | 3.14, local venv at `venv/` |
@@ -28,7 +29,7 @@ E2E pipeline: NASA FIRMS VIIRS detections over Ukraine -> Parquet medallion (bro
 | # | Phase | Status | Where |
 |---|---|---|---|
 | 1 | Foundation (pyproject, ruff, pytest, settings) | done | `pyproject.toml`, `src/firms_ua/settings.py` |
-| 2 | Bronze (client, window planner, raw writer, CLI) | done, local only | `src/firms_ua/{firms_client,windows,bronze,cli}.py` |
+| 2 | Bronze (client, window planner, raw writer, CLI); fetches the Ukraine bbox only because the API has no polygon filter, strict Ukraine-boundary clip happens in silver | done, local only | `src/firms_ua/{firms_client,windows,bronze,cli}.py` |
 | 3 | Silver (typed, clip, flags, dedupe, H3) | next | - |
 | 4 | Gold (H3 x period grid, features, snapshots) | todo | - |
 | 5 | DuckDB query layer over `gs://` | todo | - |
@@ -54,7 +55,7 @@ tests/            pytest, no network
 infra/            modules/{storage,iam,secrets}, envs/dev; README has bootstrap steps
 .github/workflows ci.yml, terraform.yml
 data/             local lake mirror (gitignored)
-PLAN.md           this file; CLAUDE.md = conventions for the assistant
+project_review.md this file (decisions, status, next steps)
 ```
 
 ## Run it
