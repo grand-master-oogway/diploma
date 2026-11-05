@@ -1,4 +1,6 @@
-"""Command line entry points."""
+"""
+Command line entry points.
+"""
 
 import argparse
 import logging
@@ -27,7 +29,9 @@ def _ingest(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    """CLI entry point."""
+    """
+    CLI entry point.
+    """
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     p = argparse.ArgumentParser(prog="firms_ua")
     sub = p.add_subparsers(required=True)

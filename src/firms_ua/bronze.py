@@ -1,4 +1,6 @@
-"""Bronze writer: raw bytes + manifest, never overwritten."""
+"""
+Bronze writer: raw bytes + manifest, never overwritten.
+"""
 
 import hashlib
 import json
@@ -18,7 +20,9 @@ def _request_dir(root: Path, window: Window) -> Path:
 
 
 def is_ingested(root: Path, window: Window) -> bool:
-    """True if a bronze object already exists for this window."""
+    """
+    True if a bronze object already exists for this window.
+    """
     base = _request_dir(root, window)
     return base.exists() and any(base.glob("ingested_at=*/manifest.json"))
 
@@ -30,7 +34,9 @@ def write_bronze(
     bbox: tuple[float, float, float, float],
     ingested_at: datetime | None = None,
 ) -> Path:
-    """Write `data.csv` (unchanged) and `manifest.json`; returns the prefix."""
+    """
+    Write `data.csv` (unchanged) and `manifest.json`; returns the prefix.
+    """
     ts = ingested_at or datetime.now(UTC)
     prefix = _request_dir(root, window) / f"ingested_at={ts:%Y%m%dT%H%M%SZ}"
     prefix.mkdir(parents=True, exist_ok=False)

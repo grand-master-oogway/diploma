@@ -1,4 +1,6 @@
-"""Pure request-window planning."""
+"""
+Pure request-window planning.
+"""
 
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -6,7 +8,9 @@ from datetime import date, timedelta
 
 @dataclass(frozen=True)
 class Window:
-    """One API request: `day_range` days starting at `start`."""
+    """
+    One API request: `day_range` days starting at `start`.
+    """
 
     source: str
     start: date
@@ -14,7 +18,8 @@ class Window:
 
 
 def plan_windows(source: str, start: date, end: date, max_day_range: int) -> list[Window]:
-    """Split `[start, end]` (inclusive) into windows of at most `max_day_range` days.
+    """
+    Split `[start, end]` (inclusive) into windows of at most `max_day_range` days.
 
     Args:
         source: FIRMS source id, e.g. `VIIRS_NOAA20_NRT`.
