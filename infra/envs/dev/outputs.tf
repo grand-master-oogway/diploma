@@ -14,10 +14,6 @@ output "dagster_vm" {
   value = { name = module.vm.instance_name, zone = module.vm.zone }
 }
 
-output "image_repository" {
-  value = module.registry.repository_url
-}
-
 # Values to set as GitHub Actions repository variables (Settings > Secrets and variables > Actions > Variables).
 output "github_variables" {
   value = {
@@ -25,7 +21,6 @@ output "github_variables" {
     WIF_PROVIDER           = module.github_oidc.provider_name
     DEPLOY_SERVICE_ACCOUNT = module.iam.service_account_emails["deploy"]
     WIF_SERVICE_ACCOUNT    = module.iam.service_account_emails["plan"]
-    IMAGE_REPOSITORY       = module.registry.repository_url
     TF_STATE_BUCKET        = var.state_bucket
   }
 }

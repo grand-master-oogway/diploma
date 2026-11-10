@@ -1,15 +1,14 @@
 name: deploy
 
-# Every push to main that changes the pipeline code: run the tests, then build the image and push it to Artifact Registry.
-# The VM pulls the latest image each time `firms-run` is used, so a push is all it takes to ship a change.
-# Needs the repository variables printed by `terraform output github_variables` (see docs/deploy.md).
+# Every push to main that changes the pipeline code: run the tests, build the package and install it on the VM.
+# GitHub reaches the VM through an IAP tunnel and OS Login (keyless, no public IP); see docs/deploy.md.
+# Needs the repository variables printed by `terraform output github_variables`.
 
 on:
   push:
     branches: [main]
     paths:
       - "src/**"
-      - "Dockerfile"
       - "pyproject.toml"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
@@ -21,46 +20,49 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  VM_NAME: firms-ua-dev-dagster
+  VM_ZONE: europe-west1-b
+
 jobs:
   test:
     uses: ./.github/workflows/ci.yml
 
-  image:
+  deploy:
     needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write # Workload Identity Federation (no stored keys)
-    env:
-      IMAGE: ${{ vars.IMAGE_REPOSITORY }}/firms-ua
     steps:
       - uses: actions/checkout@v4
 
-      - id: auth
-        uses: google-github-actions/auth@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Build the package
+        run: |
+          pip install build
+          python -m build --wheel
+
+      - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: ${{ vars.DEPLOY_SERVICE_ACCOUNT }}
-          token_format: access_token
 
-      - uses: docker/login-action@v3
-        with:
-          registry: europe-west1-docker.pkg.dev
-          username: oauth2accesstoken
-          password: ${{ steps.auth.outputs.access_token }}
+      - uses: google-github-actions/setup-gcloud@v2
 
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ env.IMAGE }}:${{ github.sha }}
-            ${{ env.IMAGE }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Copy the package to the VM and install it
+        env:
+          PROJECT: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          WHEEL="$(ls dist/*.whl)"
+          NAME="$(basename "$WHEEL")"
+          COMMON=(--zone "$VM_ZONE" --project "$PROJECT" --tunnel-through-iap --quiet --strict-host-key-checking=no)
+          gcloud compute scp "${COMMON[@]}" "$WHEEL" "$VM_NAME:/tmp/$NAME"
+          gcloud compute ssh "$VM_NAME" "${COMMON[@]}" \
+            --command "sudo /usr/local/sbin/firms-ua-install /tmp/$NAME && rm -f /tmp/$NAME"
 
       - name: Summary
-        run: echo "Pushed ${IMAGE}:${GITHUB_SHA} (and :latest)" >> "$GITHUB_STEP_SUMMARY"
+        run: echo "Installed ${GITHUB_SHA} on ${VM_NAME}" >> "$GITHUB_STEP_SUMMARY"
