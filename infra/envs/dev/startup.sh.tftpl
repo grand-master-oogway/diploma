@@ -1,0 +1,30 @@
+#!/bin/bash
+# VM startup script (rendered by Terraform, runs at every boot, safe to repeat).
+# Installs Docker and a helper `firms-run` that pulls the latest pipeline image and runs the CLI in it:
+#   sudo firms-run smoke
+#   sudo firms-run ingest --source VIIRS_NOAA20_SP --date 2025-07-15
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+if ! command -v docker >/dev/null 2>&1; then
+  apt-get update -y
+  apt-get install -y docker.io
+  systemctl enable --now docker
+fi
+
+cat >/usr/local/bin/firms-run <<'SCRIPT'
+#!/bin/bash
+set -euo pipefail
+# The VM's service account token comes from the metadata server; it is never written to disk.
+TOKEN=$(curl -s -H "Metadata-Flavor: Google" \
+  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \
+  | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+echo "$TOKEN" | docker login -u oauth2accesstoken --password-stdin ${registry_host} >/dev/null 2>&1
+docker pull -q ${image} >/dev/null
+exec docker run --rm \
+  -e FIRMS_STORAGE_ROOT=${storage_root} \
+  -e FIRMS_GCP_PROJECT=${project_id} \
+  -e FIRMS_MAP_KEY_SECRET=${map_key_secret} \
+  ${image} "$@"
+SCRIPT
+chmod 755 /usr/local/bin/firms-run

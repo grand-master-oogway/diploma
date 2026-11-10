@@ -1,8 +1,9 @@
 locals {
-  layers = ["bronze", "silver", "gold", "artifacts"]
+  layers = ["raw", "bronze", "silver", "gold", "artifacts"]
 
   # Versioning on everything except silver (rebuilt from bronze, overwrite is normal).
   versioned = {
+    raw       = true
     bronze    = true
     silver    = false
     gold      = true
@@ -26,9 +27,14 @@ resource "google_storage_bucket" "layer" {
     enabled = local.versioned[each.key]
   }
 
-  # Bronze: raw data is rarely re-read, move to a colder tier.
+  # Deleted or overwritten objects stay recoverable for this long.
+  soft_delete_policy {
+    retention_duration_seconds = var.soft_delete_retention_seconds
+  }
+
+  # Raw and bronze are rarely re-read, move them to a colder tier.
   dynamic "lifecycle_rule" {
-    for_each = each.key == "bronze" ? [1] : []
+    for_each = contains(["raw", "bronze"], each.key) ? [1] : []
     content {
       condition {
         age = var.bronze_coldline_after_days

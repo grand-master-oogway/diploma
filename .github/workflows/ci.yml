@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_call: # also reused by deploy.yml as the gate before an image is built
 
 permissions:
   contents: read

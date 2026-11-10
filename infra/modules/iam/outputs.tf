@@ -7,3 +7,8 @@ output "service_account_members" {
   description = "Component name to IAM member string."
   value       = { for k, sa in google_service_account.component : k => sa.member }
 }
+
+output "service_account_names" {
+  description = "Component name to service account resource name (projects/.../serviceAccounts/...)."
+  value       = { for k, sa in google_service_account.component : k => sa.name }
+}

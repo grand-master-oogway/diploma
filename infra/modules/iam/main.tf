@@ -1,7 +1,9 @@
 locals {
   # component -> description
   components = {
-    ingestion = "FIRMS ingestion (writes bronze)"
+    ingestion = "FIRMS ingestion: fetch to raw, then raw to bronze"
+    deploy    = "CI/CD: pushes container images from GitHub Actions"
+    plan      = "CI: terraform plan (read-only) from GitHub Actions"
     silver    = "Bronze to silver transform"
     gold      = "Gold feature build"
     training  = "Model training (reads gold, writes MLflow artifacts)"
@@ -17,8 +19,21 @@ resource "google_service_account" "component" {
 }
 
 # Least-privilege matrix. objectCreator = create only (no overwrite, no delete).
-# Ingestion: create in bronze only, cannot read or delete anything.
-resource "google_storage_bucket_iam_member" "ingestion_bronze" {
+# Ingestion: create + read in raw (reads raw objects and its own ingestion log), create-only in bronze.
+# It cannot delete or overwrite anything; writes also use an if-generation-match=0 precondition in code.
+resource "google_storage_bucket_iam_member" "ingestion_raw_create" {
+  bucket = var.buckets["raw"]
+  role   = "roles/storage.objectCreator"
+  member = google_service_account.component["ingestion"].member
+}
+
+resource "google_storage_bucket_iam_member" "ingestion_raw_read" {
+  bucket = var.buckets["raw"]
+  role   = "roles/storage.objectViewer"
+  member = google_service_account.component["ingestion"].member
+}
+
+resource "google_storage_bucket_iam_member" "ingestion_bronze_create" {
   bucket = var.buckets["bronze"]
   role   = "roles/storage.objectCreator"
   member = google_service_account.component["ingestion"].member

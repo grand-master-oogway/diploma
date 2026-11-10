@@ -39,3 +39,9 @@ variable "labels" {
   type    = map(string)
   default = {}
 }
+
+variable "soft_delete_retention_seconds" {
+  type        = number
+  description = "Soft delete retention for every bucket (0 disables). Default 7 days."
+  default     = 604800
+}

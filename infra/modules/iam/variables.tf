@@ -13,7 +13,7 @@ variable "env" {
 
 variable "buckets" {
   type        = map(string)
-  description = "Layer name to bucket name (bronze, silver, gold, artifacts)."
+  description = "Layer name to bucket name (raw, bronze, silver, gold, artifacts)."
 }
 
 variable "analyst_members" {
