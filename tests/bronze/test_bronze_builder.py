@@ -9,7 +9,7 @@ from datetime import UTC, date, datetime
 import polars as pl
 import pytest
 
-from firms_ua.bronze.builder import build_bronze, is_built, to_bronze_frame
+from firms_ua.bronze.builder import build_bronze, to_bronze_frame
 from firms_ua.common.errors import SchemaError
 from firms_ua.common.windows import Window
 from firms_ua.datacatalog.bronze import FirmsBronze
@@ -30,6 +30,13 @@ def raw_object(raw: Storage, content: str = HEADER + ROW, ts: datetime = T0, win
     Store `content` in raw and return the object.
     """
     return write_raw(raw, window, content.encode(), ts)
+
+
+def is_built(bronze: Storage, obj) -> bool:
+    """
+    True if bronze holds a file built from this raw object (the test helper may list; the pipeline itself never does).
+    """
+    return FirmsBronze.part_exists(bronze, {"source": obj.window.source}, obj.requested_at)
 
 
 def stores(tmp_path) -> tuple[LocalStorage, LocalStorage]:
@@ -145,3 +152,45 @@ def test_missing_required_column_fails_loudly() -> None:
     """
     with pytest.raises(SchemaError, match="not in dataframe"):
         to_bronze_frame(HEADER.replace("frp,", "").encode(), W, datetime(2024, 3, 2, tzinfo=UTC))
+
+
+def test_rerun_adds_only_missing_files_and_never_lists_bronze(tmp_path) -> None:
+    """
+    A partly built response is completed by a rerun, and building works with a bronze storage that cannot list or read.
+    """
+
+    class CreateOnly(LocalStorage):
+        """
+        Like the ingestion identity on the bronze bucket: create only, no list, no read.
+        """
+
+        def list_keys(self, prefix: str) -> list[str]:
+            """
+            Refuse, as a create-only role does.
+            """
+            raise PermissionError("403 storage.objects.list denied")
+
+        def get(self, key: str) -> bytes:
+            """
+            Refuse, as a create-only role does.
+            """
+            raise PermissionError("403 storage.objects.get denied")
+
+        def exists(self, key: str) -> bool:
+            """
+            Refuse, as a create-only role does.
+            """
+            raise PermissionError("403 storage.objects.get denied")
+
+    raw = LocalStorage(tmp_path / "raw")
+    bronze = CreateOnly(tmp_path / "bronze")
+    rows = [ROW, ROW.replace("2024-03-01", "2024-03-02")]
+    obj = raw_object(raw, content=HEADER + "".join(rows), window=Window(W.source, W.start, 5))
+
+    first = build_bronze(raw, bronze, obj)
+    assert len(first.keys) == 2 and first.rows == 2
+    (tmp_path / "bronze" / first.keys[0]).unlink()  # simulate a crash that left only one of the two files
+    second = build_bronze(raw, bronze, obj)
+    assert second.keys == [first.keys[0]] and second.rows == 2  # only the missing file is written again
+    third = build_bronze(raw, bronze, obj)
+    assert (third.keys, third.rows) == ([], None)  # everything exists

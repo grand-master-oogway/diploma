@@ -20,18 +20,11 @@ log = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class BronzeBuild:
     """
-    Result of building one raw object: the keys written and the rows (None if it was already built).
+    Result of building one raw object: the keys written and the rows (None if everything already existed).
     """
 
     keys: list[str]
     rows: int | None
-
-
-def is_built(bronze: Storage, obj: RawObject) -> bool:
-    """
-    True if bronze already holds files built from this raw object (a response with zero rows writes none).
-    """
-    return FirmsBronze.part_exists(bronze, {"source": obj.window.source}, obj.requested_at)
 
 
 def to_bronze_frame(content: bytes, window: Window, requested_at: datetime) -> pl.DataFrame:
@@ -61,16 +54,17 @@ def build_bronze(raw: Storage, bronze: Storage, obj: RawObject) -> BronzeBuild:
     """
     Build bronze from one raw object, one file per acquisition date.
 
-    The file names derive from the raw object's request time. Nothing is written if the files already exist or if the
-    response has no rows (there is no date to partition on).
+    The file names derive from the raw object's request time. The identity that runs this may only create objects in
+    bronze (it cannot list or read them), so existing files are detected by the create-if-absent write itself: a rerun
+    skips what exists and adds what is missing. A response with no rows writes nothing (there is no date to partition on).
     """
-    if is_built(bronze, obj):
-        log.info("skip %s: already in bronze", obj.key)
-        return BronzeBuild(keys=[], rows=None)
     df = to_bronze_frame(read_raw(raw, obj), obj.window, obj.requested_at)
     if df.is_empty():
         log.info("no rows in %s: nothing written to bronze", obj.key)
         return BronzeBuild(keys=[], rows=0)
-    keys = FirmsBronze.write(df, bronze, obj.requested_at)
+    keys = FirmsBronze.write(df, bronze, obj.requested_at, skip_existing=True)
+    if not keys:
+        log.info("skip %s: already in bronze", obj.key)
+        return BronzeBuild(keys=[], rows=None)
     log.info("bronze built from %s: %d files, rows=%d", obj.key, len(keys), df.height)
     return BronzeBuild(keys=keys, rows=df.height)
