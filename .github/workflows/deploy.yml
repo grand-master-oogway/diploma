@@ -60,9 +60,10 @@ jobs:
           WHEEL="$(ls dist/*.whl)"
           NAME="$(basename "$WHEEL")"
           COMMON=(--zone "$VM_ZONE" --project "$PROJECT" --tunnel-through-iap --quiet --strict-host-key-checking=no)
-          gcloud compute scp "${COMMON[@]}" "$WHEEL" "$VM_NAME:/tmp/$NAME"
+          # Copy into the deploy user's own home directory: a shared /tmp can hold files of other users that it may not overwrite.
+          gcloud compute scp "${COMMON[@]}" "$WHEEL" "$VM_NAME:$NAME"
           gcloud compute ssh "$VM_NAME" "${COMMON[@]}" \
-            --command "sudo /usr/local/sbin/firms-ua-install /tmp/$NAME && rm -f /tmp/$NAME"
+            --command "sudo /usr/local/sbin/firms-ua-install \"\$HOME/$NAME\" && rm -f \"\$HOME/$NAME\""
 
       - name: Summary
         run: echo "Installed ${GITHUB_SHA} on ${VM_NAME}" >> "$GITHUB_STEP_SUMMARY"
