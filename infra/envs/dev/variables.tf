@@ -27,6 +27,12 @@ variable "github_repository" {
   default     = "grand-master-oogway/diploma"
 }
 
+variable "github_repository_id" {
+  type        = string
+  description = "Numeric id of the GitHub repository (from the repository's OIDC subject)."
+  default     = "1434867525"
+}
+
 variable "state_bucket" {
   type        = string
   description = "Terraform state bucket (created by hand, see infra/README.md)."

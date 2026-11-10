@@ -83,6 +83,7 @@ module "github_oidc" {
   project_id                = var.project_id
   env                       = local.env
   github_repository         = var.github_repository
+  github_repository_id      = var.github_repository_id
   deploy_service_account_id = module.iam.service_account_names["deploy"]
   plan_service_account_id   = module.iam.service_account_names["plan"]
 
