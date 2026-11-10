@@ -1,9 +1,8 @@
 # datacatalog
 
-One place that says what every table looks like.
+Table definitions only: one class per table, one file per layer. Nothing else belongs here.
 
-- `base.py`: `Column` (name, Polars dtype, description, nullable) and `Table` (layer, columns, partition columns, `schema()`, `validate(df)`).
-- `bronze.py`: `FirmsBronze`, all API columns as strings plus lineage columns.
-- `silver.py`, `gold.py`: filled when those layers are built. A new table is a subclass of `Table` that declares `name`, `layer`, `columns`, `partition_by`.
+- `bronze.py`: `FirmsBronze`, all API columns as strings (`type` is optional: SP only, null in NRT), then lineage columns (`day_range`, `requested_at`, `source`, `start_date`). Hive partitions: `source` and `acq_date` (stored in folder names, not in the files).
+- `silver.py`, `gold.py`: filled when those layers are built.
 
-Writers call `Table.validate(df)` before writing, so the code can never produce a different layout than the one declared here. Bump `version` when columns change.
+A table is a subclass of `ParquetTable` (see `datacatalog_core/`): Polars-typed annotated columns plus `Config.name` and `Config.metadata` (version, partitions). Columns are non-nullable unless declared with `nullable=True`; `Field(description=...)` documents a column and `Field(metadata={...})` tags it.

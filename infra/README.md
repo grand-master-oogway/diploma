@@ -1,9 +1,11 @@
 # Infrastructure (Terraform, GCP)
 
 ```
-modules/storage   bronze/silver/gold/artifacts buckets (uniform access, public access blocked)
+modules/storage   raw/bronze/silver/gold/artifacts buckets (uniform access, public access blocked)
 modules/iam       one service account per component, least-privilege bucket roles
 modules/secrets   Secret Manager container for the FIRMS MAP_KEY (value added manually)
+modules/network   VPC, subnet, Cloud Router + Cloud NAT, IAP-only firewall
+modules/vm        Dagster VM (no external IP, runs as the ingestion service account)
 envs/dev          dev environment (separate state); prod to be added the same way
 ```
 

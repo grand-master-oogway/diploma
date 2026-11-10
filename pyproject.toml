@@ -7,6 +7,8 @@ dependencies = [
     "requests>=2.32",
     "duckdb>=1.1",
     "polars>=1",
+    "pandera[polars]>=0.20",
+    "google-cloud-storage>=3",
     "pydantic-settings>=2.5",
 ]
 

@@ -1,55 +1,49 @@
 """
-Bronze table definitions.
+Bronze tables.
 """
 
-from typing import ClassVar
-
+import pandera.polars as pa
 import polars as pl
 
-from firms_ua.datacatalog.base import Column, Table
-
-S = pl.String
+from firms_ua.datacatalog_core.parquet_table import ParquetTable
 
 
-class FirmsBronze(Table):
+class FirmsBronze(ParquetTable):
     """
-    Raw FIRMS VIIRS detections: every API column as a string, plus lineage.
+    Raw FIRMS VIIRS detections: every API column as a string, then lineage and partition columns.
 
-    Nothing is parsed here on purpose (for example `acq_time` arrives unpadded, `"34"` means 00:34).
-    Typing and cleaning happen in silver.
+    Nothing is parsed on purpose (`acq_time` arrives unpadded, `"34"` means 00:34). Typing happens in silver.
     """
 
-    name = "firms_viirs"
-    layer = "bronze"
-    version = 1
-    partition_by = ("source",)  # a directory only, not a column in the file
-
-    raw_columns: ClassVar[tuple[Column, ...]] = (
-        Column("latitude", S, "Pixel center latitude"),
-        Column("longitude", S, "Pixel center longitude"),
-        Column("bright_ti4", S, "I-4 brightness temperature, K"),
-        Column("scan", S, "Along-scan pixel size, km"),
-        Column("track", S, "Along-track pixel size, km"),
-        Column("acq_date", S, "Acquisition date, UTC, YYYY-MM-DD"),
-        Column("acq_time", S, "Acquisition time, UTC, HHMM, leading zeros may be missing"),
-        Column("satellite", S, "Satellite code as sent by the API (encoding varies)"),
-        Column("instrument", S, "Instrument, VIIRS"),
-        Column("confidence", S, "Categorical l/n/h for VIIRS"),
-        Column("version", S, "Product version, e.g. 2.0NRT"),
-        Column("bright_ti5", S, "I-5 brightness temperature, K"),
-        Column("frp", S, "Fire radiative power, MW"),
-        Column("daynight", S, "D or N"),
+    latitude: pl.String = pa.Field(nullable=True, description="Pixel center latitude")
+    longitude: pl.String = pa.Field(nullable=True, description="Pixel center longitude")
+    bright_ti4: pl.String = pa.Field(nullable=True, description="I-4 brightness temperature, K")
+    scan: pl.String = pa.Field(nullable=True, description="Along-scan pixel size, km")
+    track: pl.String = pa.Field(nullable=True, description="Along-track pixel size, km")
+    acq_date: pl.String = pa.Field(description="Acquisition date, UTC, YYYY-MM-DD (partition)")
+    acq_time: pl.String = pa.Field(nullable=True, description="Acquisition time, UTC, HHMM, leading zeros may be missing")
+    satellite: pl.String = pa.Field(nullable=True, description="Satellite code as sent by the API")
+    instrument: pl.String = pa.Field(nullable=True, description="Instrument, VIIRS")
+    confidence: pl.String = pa.Field(nullable=True, description="Categorical l/n/h for VIIRS")
+    version: pl.String = pa.Field(nullable=True, description="Product version, e.g. 2.0NRT")
+    bright_ti5: pl.String = pa.Field(nullable=True, description="I-5 brightness temperature, K")
+    frp: pl.String = pa.Field(nullable=True, description="Fire radiative power, MW")
+    daynight: pl.String = pa.Field(nullable=True, description="D or N")
+    type: pl.String = pa.Field(
+        nullable=True,
+        description="Detection type (SP only; null in NRT): 0 vegetation fire, 1 volcano, 2 other static land, 3 offshore",
+        metadata={"optional": True},
     )
-    lineage_columns: ClassVar[tuple[Column, ...]] = (
-        Column("day_range", pl.Int16, "Number of days requested", nullable=False),
-        Column("start_date", pl.Date, "First day requested", nullable=False),
-        Column("requested_at", pl.Datetime("us", "UTC"), "Request time, UTC", nullable=False),
-    )
-    columns = raw_columns + lineage_columns
 
-    @classmethod
-    def raw_column_names(cls) -> list[str]:
+    day_range: pl.Int16 = pa.Field(description="Number of days requested", metadata={"lineage": True})
+    requested_at: pl.Datetime(time_unit="us", time_zone="UTC") = pa.Field(description="Request time, UTC", metadata={"lineage": True})
+    source: pl.String = pa.Field(description="FIRMS source id, e.g. VIIRS_NOAA20_NRT (partition)", metadata={"lineage": True})
+    start_date: pl.Date = pa.Field(description="First day requested", metadata={"lineage": True})
+
+    class Config:
         """
-        Return the names of the columns that come from the API.
+        Table identity and layout.
         """
-        return [c.name for c in cls.raw_columns]
+
+        name = "bronze.firms_viirs"
+        metadata = {"version": 1, "partition_by": ("source", "acq_date")}

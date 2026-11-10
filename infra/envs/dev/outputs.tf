@@ -9,3 +9,7 @@ output "service_accounts" {
 output "map_key_secret_id" {
   value = module.secrets.map_key_secret_id
 }
+
+output "dagster_vm" {
+  value = { name = module.vm.instance_name, zone = module.vm.zone }
+}

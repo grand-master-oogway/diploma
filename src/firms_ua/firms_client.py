@@ -16,7 +16,11 @@ from firms_ua.windows import Window
 log = logging.getLogger(__name__)
 
 BASE_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
-EXPECTED_COLUMNS = frozenset(FirmsBronze.raw_column_names())
+EXPECTED_COLUMNS = (
+    frozenset(FirmsBronze.column_names())
+    - frozenset(FirmsBronze.columns_with_metadata("lineage"))
+    - frozenset(FirmsBronze.columns_with_metadata("optional"))
+)
 
 
 @dataclass(frozen=True)
