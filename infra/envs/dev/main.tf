@@ -114,13 +114,14 @@ module "vm" {
   service_account_email = module.iam.service_account_emails["ingestion"]
   labels                = local.labels
 
-  startup_script = templatefile("${path.module}/startup.sh.tftpl", {
+  # Strip any CR so the bash script is valid even if a Windows checkout turned the template into CRLF.
+  startup_script = replace(templatefile("${path.module}/startup.sh.tftpl", {
     registry_host  = module.registry.registry_host
     image          = "${module.registry.repository_url}/firms-ua:latest"
     storage_root   = "gs://${var.project_name}-${local.env}"
     project_id     = var.project_id
     map_key_secret = "projects/${var.project_id}/secrets/${module.secrets.map_key_secret_id}"
-  })
+  }), "\r", "")
 
   depends_on = [module.registry]
 }
