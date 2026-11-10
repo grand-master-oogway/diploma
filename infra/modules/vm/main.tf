@@ -34,7 +34,10 @@ resource "google_compute_instance" "dagster" {
     enable_integrity_monitoring = true
   }
 
-  metadata = {
-    enable-oslogin = "TRUE"
-  }
+  # startup-script runs at every boot (installs Docker and the firms-run helper). Set as metadata (not
+  # metadata_startup_script) so that changing it updates the VM in place instead of replacing it.
+  metadata = merge(
+    { enable-oslogin = "TRUE" },
+    var.startup_script == null ? {} : { startup-script = var.startup_script },
+  )
 }

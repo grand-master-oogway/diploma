@@ -43,3 +43,9 @@ variable "labels" {
   type    = map(string)
   default = {}
 }
+
+variable "startup_script" {
+  type        = string
+  description = "Bash script run at every boot."
+  default     = null
+}

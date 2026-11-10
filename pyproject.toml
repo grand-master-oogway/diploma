@@ -12,6 +12,9 @@ dependencies = [
     "pydantic-settings>=2.5",
 ]
 
+[project.scripts]
+firms-ua = "firms_ua.cli.main:main"
+
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.7", "responses>=0.25", "pre-commit>=4"]
 
@@ -35,3 +38,4 @@ convention = "google"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["tests"]  # lets tests import the shared fakes module

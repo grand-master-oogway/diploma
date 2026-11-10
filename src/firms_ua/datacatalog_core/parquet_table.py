@@ -11,8 +11,8 @@ import pandera.polars as pa
 import polars as pl
 from pandera.errors import SchemaErrors
 
-from firms_ua.errors import SchemaError
-from firms_ua.storage import Storage
+from firms_ua.common.errors import SchemaError
+from firms_ua.storage.base import Storage
 
 
 class ParquetTable(pa.DataFrameModel):

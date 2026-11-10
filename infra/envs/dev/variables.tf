@@ -14,3 +14,21 @@ variable "analyst_members" {
   description = "Humans with read access, e.g. [\"user:you@example.com\"]."
   default     = []
 }
+
+variable "project_name" {
+  type        = string
+  description = "Prefix of bucket and resource names."
+  default     = "firms-ua"
+}
+
+variable "github_repository" {
+  type        = string
+  description = "GitHub repository (owner/name) allowed to deploy."
+  default     = "grand-master-oogway/diploma"
+}
+
+variable "state_bucket" {
+  type        = string
+  description = "Terraform state bucket (created by hand, see infra/README.md)."
+  default     = "nasa-firms-tfstate"
+}
