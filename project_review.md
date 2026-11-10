@@ -13,7 +13,7 @@ E2E pipeline: NASA FIRMS VIIRS detections over Ukraine -> Parquet medallion (bro
 | Processing engine | Polars for all transforms (fetch -> bronze -> silver -> gold, writes Parquet) |
 | Query engine | DuckDB, read-only over the Parquet in buckets (views, ad-hoc SQL); never writes the layers |
 | Orchestrator | Dagster |
-| Compute | single Compute Engine VM, Docker Compose (Dagster + MLflow) |
+| Compute | single Compute Engine VM, code as files + systemd services (Dagster + MLflow), no Docker |
 | Python | 3.14, local venv at `venv/` |
 | Data | VIIRS only (no MODIS/Landsat); bbox 22.1,44.4,40.2,52.4, clipped to Ukraine polygon in silver |
 | Key | `MAP_KEY` / `FIRMS_MAP_KEY` in `.env` (gitignored); later Secret Manager |
@@ -34,7 +34,7 @@ E2E pipeline: NASA FIRMS VIIRS detections over Ukraine -> Parquet medallion (bro
 | 2c | Storage backend: `Storage` interface with `LocalStorage` (tmp file + hard link, never overwrites) and `GcsStorage` (`if_generation_match=0`, ADC); `FIRMS_STORAGE_ROOT` = `./data` or `gs://firms-ua-dev` (layer appended). Verified live against the dev buckets | done | `src/firms_ua/storage/` |
 | 2d | Ingestion log: table `raw.ingestion_log` (one small file per entry: stage raw/bronze, status ok/failed, http status, rows, bytes, redacted error) in the raw bucket; `fetch`/`build-bronze` skip finished work from the log, log failures and continue, exit code 1 if any failed; zero-row responses are logged ok with rows=0 | done | `src/firms_ua/ingestion/`, `src/firms_ua/datacatalog/ingestion_log.py` |
 | 2e | `probe` (availability, NRT retention, request cost, S-NPP gap; findings in `docs/probe_findings.md`) and `smoke` (key, FIRMS and bucket access of the current identity) commands; MAP_KEY can come from Secret Manager (`FIRMS_MAP_KEY_SECRET`) | done, run locally | `src/firms_ua/{ops,cli}/`, `src/firms_ua/common/secrets.py` |
-| 2f | Deploy: `Dockerfile`, Artifact Registry (`firms-ua-dev`), VM startup script installs Docker + `firms-run` helper; applied 2026-11-10; `firms-run smoke` passes on the VM with the ingestion service account (silver/gold/artifacts writes and bronze reads are refused, as designed). **CD:** `deploy.yml` builds and pushes the image on every push to `main` via Workload Identity Federation (Terraform written and planned, not yet applied; Cloud Build removed) | in progress | `Dockerfile`, `infra/modules/{registry,github_oidc}`, `.github/workflows/deploy.yml`, `docs/deploy.md` |
+| 2f | Deploy: no Docker. VM startup script installs `uv`, a Python 3.14 venv in `/opt/firms-ua`, `firms-ua-install` and the `firms-ua` command; `deploy.yml` builds a wheel and installs it over IAP + OS Login (keyless, Workload Identity Federation, immutable-subject binding). Terraform written and planned, **not applied yet**; the earlier Docker image path and Artifact Registry are being removed | in progress | `infra/envs/dev/startup.sh.tftpl`, `infra/modules/{github_oidc,deploy_access}`, `.github/workflows/deploy.yml`, `docs/deploy.md` |
 | 3 | Silver (typed, clip, flags, dedupe, H3) | next | - |
 | 4 | Gold (H3 x period grid, features, snapshots) | todo | - |
 | 5 | DuckDB query layer over `gs://` | todo | - |
@@ -67,7 +67,7 @@ src/firms_ua/
   datacatalog_core/  ParquetTable base class   datacatalog/  table definitions
 src/logger/   console-only logging config, top-level so every package can use it
 tests/        mirrors the packages (tests/<package>/test_*.py); tests/fakes.py = in-memory GCS fake
-infra/        modules/{storage,iam,secrets,network,vm,registry,github_oidc}, envs/dev; README has bootstrap steps
+infra/        modules/{storage,iam,secrets,network,vm,github_oidc,deploy_access}, envs/dev; README has bootstrap steps
 .github/workflows  ci.yml, terraform.yml, deploy.yml
 docs/         dagster_notes, probe_findings, deploy
 data/         local lake mirror (gitignored)

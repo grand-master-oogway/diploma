@@ -1,30 +1,49 @@
 #!/bin/bash
 # VM startup script (rendered by Terraform, runs at every boot, safe to repeat).
-# Installs Docker and a helper `firms-run` that pulls the latest pipeline image and runs the CLI in it:
-#   sudo firms-run smoke
-#   sudo firms-run ingest --source VIIRS_NOAA20_SP --date 2025-07-15
+#
+# Prepares the machine to run the pipeline from files:
+#   /opt/firms-ua/venv            Python 3.14 environment (uv); the code is installed into it by the deploy workflow
+#   /usr/local/sbin/firms-ua-install <wheel>   installs a built package into that environment (used by the deploy workflow)
+#   /usr/local/bin/firms-ua <command>          runs the pipeline CLI with the right settings, e.g. `firms-ua smoke`
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
+export UV_PYTHON_INSTALL_DIR=/opt/uv-python
 
-if ! command -v docker >/dev/null 2>&1; then
+if ! command -v uv >/dev/null 2>&1; then
   apt-get update -y
-  apt-get install -y docker.io
-  systemctl enable --now docker
+  apt-get install -y curl ca-certificates
+  curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 INSTALLER_NO_MODIFY_PATH=1 sh
 fi
 
-cat >/usr/local/bin/firms-run <<'SCRIPT'
+mkdir -p /opt/firms-ua
+if [ ! -x /opt/firms-ua/venv/bin/python ]; then
+  uv venv --python 3.14 /opt/firms-ua/venv
+fi
+chmod -R a+rX /opt/firms-ua /opt/uv-python
+
+cat >/usr/local/sbin/firms-ua-install <<'SCRIPT'
 #!/bin/bash
+# Install a built wheel into the pipeline environment: firms-ua-install /tmp/firms_ua-0.1.0-py3-none-any.whl
 set -euo pipefail
-# The VM's service account token comes from the metadata server; it is never written to disk.
-TOKEN=$(curl -s -H "Metadata-Flavor: Google" \
-  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \
-  | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
-echo "$TOKEN" | docker login -u oauth2accesstoken --password-stdin ${registry_host} >/dev/null 2>&1
-docker pull -q ${image} >/dev/null
-exec docker run --rm \
-  -e FIRMS_STORAGE_ROOT=${storage_root} \
-  -e FIRMS_GCP_PROJECT=${project_id} \
-  -e FIRMS_MAP_KEY_SECRET=${map_key_secret} \
-  ${image} "$@"
+export UV_PYTHON_INSTALL_DIR=/opt/uv-python
+uv pip install --python /opt/firms-ua/venv/bin/python --reinstall-package firms-ua "$1"
+chmod -R a+rX /opt/firms-ua
+/opt/firms-ua/venv/bin/firms-ua --help >/dev/null
+echo "installed $(basename "$1")"
 SCRIPT
-chmod 755 /usr/local/bin/firms-run
+chmod 755 /usr/local/sbin/firms-ua-install
+
+cat >/usr/local/bin/firms-ua <<'SCRIPT'
+#!/bin/bash
+# Run the pipeline CLI. The MAP_KEY is read from Secret Manager with this VM's service account; no key lives on disk.
+set -euo pipefail
+if [ ! -x /opt/firms-ua/venv/bin/firms-ua ]; then
+  echo "firms-ua is not installed yet: run the deploy workflow first" >&2
+  exit 1
+fi
+export FIRMS_STORAGE_ROOT=${storage_root}
+export FIRMS_GCP_PROJECT=${project_id}
+export FIRMS_MAP_KEY_SECRET=${map_key_secret}
+exec /opt/firms-ua/venv/bin/firms-ua "$@"
+SCRIPT
+chmod 755 /usr/local/bin/firms-ua

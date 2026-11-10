@@ -10,7 +10,7 @@ resource "google_project_service" "apis" {
     "secretmanager.googleapis.com",
     "compute.googleapis.com",
     "iap.googleapis.com",
-    "artifactregistry.googleapis.com",
+    "oslogin.googleapis.com",
     "cloudresourcemanager.googleapis.com",
   ])
 
@@ -63,19 +63,6 @@ module "network" {
   depends_on = [google_project_service.apis]
 }
 
-module "registry" {
-  source = "../../modules/registry"
-
-  project_id     = var.project_id
-  env            = local.env
-  region         = var.region
-  labels         = local.labels
-  reader_members = [module.iam.service_account_members["ingestion"]]
-  writer_members = [module.iam.service_account_members["deploy"]]
-
-  depends_on = [google_project_service.apis]
-}
-
 # GitHub Actions authenticates without keys (Workload Identity Federation) and acts as the deploy / plan accounts.
 module "github_oidc" {
   source = "../../modules/github_oidc"
@@ -117,12 +104,22 @@ module "vm" {
 
   # Strip any CR so the bash script is valid even if a Windows checkout turned the template into CRLF.
   startup_script = replace(templatefile("${path.module}/startup.sh.tftpl", {
-    registry_host  = module.registry.registry_host
-    image          = "${module.registry.repository_url}/firms-ua:latest"
     storage_root   = "gs://${var.project_name}-${local.env}"
     project_id     = var.project_id
     map_key_secret = "projects/${var.project_id}/secrets/${module.secrets.map_key_secret_id}"
   }), "\r", "")
 
-  depends_on = [module.registry]
+}
+
+# Lets GitHub Actions copy the built package to the VM and install it, over an IAP tunnel and OS Login (no key, no public IP).
+module "deploy_access" {
+  source = "../../modules/deploy_access"
+
+  project_id                     = var.project_id
+  zone                           = module.vm.zone
+  instance_name                  = module.vm.instance_name
+  deploy_member                  = module.iam.service_account_members["deploy"]
+  vm_service_account_resource_id = module.iam.service_account_names["ingestion"]
+
+  depends_on = [google_project_service.apis]
 }
