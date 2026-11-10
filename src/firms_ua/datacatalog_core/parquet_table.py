@@ -146,6 +146,7 @@ class ParquetTable(pa.DataFrameModel):
         requested_at: datetime,
         *,
         partition_values: Mapping[str, object] | None = None,
+        skip_existing: bool = False,
     ) -> list[str]:
         """
         Validate `df` and write one new file per Hive partition; existing files are never touched.
@@ -155,14 +156,16 @@ class ParquetTable(pa.DataFrameModel):
             store: Storage of this table's layer.
             requested_at: Used for the unique file name.
             partition_values: Partition values to use when `df` has no rows (an empty frame carries no keys).
+            skip_existing: Leave files that already exist alone instead of failing (the create-if-absent write itself
+                tells, so no listing or reading is needed); a rerun then only adds the missing files.
 
         Returns:
-            Keys of the files written.
+            Keys of the files written (not the skipped ones).
 
         Raises:
             SchemaError: If `df` does not match the definition (nothing is written).
             ValueError: If `df` is empty and `partition_values` is missing.
-            FileExistsError: If a file with the same key already exists.
+            FileExistsError: If a file with the same key already exists (unless `skip_existing`).
         """
         cls.check(df)
         keys = cls.partition_columns()
@@ -180,7 +183,12 @@ class ParquetTable(pa.DataFrameModel):
             key = cls._part_key(dict(zip(keys, values, strict=True)), requested_at)
             buffer = io.BytesIO()
             group.select(cls.file_columns()).write_parquet(buffer, compression="zstd", metadata=metadata)
-            store.put_new(key, buffer.getvalue())
+            try:
+                store.put_new(key, buffer.getvalue())
+            except FileExistsError:
+                if not skip_existing:
+                    raise
+                continue
             written.append(key)
         return written
 
