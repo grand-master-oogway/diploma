@@ -12,13 +12,15 @@ envs/dev          dev environment (separate state); prod to be added the same wa
 ```
 
 Changes are applied by CI: a pull request shows `terraform plan` (read-only account); after the merge to `main`, the `apply` job
-plans again and applies once a reviewer approves the run in the `dev-infra` GitHub environment. It uses the `apply` service account,
-which only main-branch runs can impersonate. Local `apply` is only for the bootstrap below.
+plans again and applies automatically, with no approval step. **Review the plan on the pull request before merging: it is the only
+check.** The job uses the `apply` service account, which only main-branch runs can impersonate. Local `apply` is only for the bootstrap
+below.
 
 ## Enabling CI apply (once)
 1. Apply locally once, so the apply account and its bindings exist: `terraform plan` / `terraform apply` in `envs/dev`.
 2. Add repository variable `APPLY_SERVICE_ACCOUNT` from `terraform output github_variables`.
-3. Create the GitHub environment `dev-infra` (Settings > Environments) with yourself as required reviewer and deployments limited to `main`.
+3. Optional: in the GitHub environment `dev-infra` (Settings > Environments), limit deployment branches to `main`. Adding required
+   reviewers turns on an approval step before every apply, if the GitHub plan offers it.
 
 Until `APPLY_SERVICE_ACCOUNT` is set, the `apply` job is skipped.
 

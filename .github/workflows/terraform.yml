@@ -1,7 +1,7 @@
 name: terraform
 
-# Pull requests: validate + plan (read-only account). Merge to main: plan + apply, after approval in the `dev-infra`
-# GitHub environment, with the apply account (usable only by main-branch runs).
+# Pull requests: validate + plan (read-only account); review the plan there, it is the only check before apply.
+# Merge to main: plan + apply automatically with the apply account (usable only by main-branch runs).
 
 on:
   pull_request:
@@ -67,8 +67,8 @@ jobs:
           terraform plan -input=false -lock-timeout=60s
 
   apply:
-    # Needs repository variable APPLY_SERVICE_ACCOUNT and a GitHub environment `dev-infra` with a required reviewer
-    # (Settings > Environments), so nothing is applied without a person approving the run.
+    # Needs repository variable APPLY_SERVICE_ACCOUNT. The `dev-infra` environment only records the deployment history
+    # (required reviewers are not available for this private repository's plan).
     needs: validate
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.APPLY_SERVICE_ACCOUNT != ''
     runs-on: ubuntu-latest

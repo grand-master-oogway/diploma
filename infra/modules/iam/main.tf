@@ -4,7 +4,7 @@ locals {
     ingestion = "FIRMS ingestion: fetch to raw, then raw to bronze"
     deploy    = "CI/CD: pushes container images from GitHub Actions"
     plan      = "CI: terraform plan (read-only) from GitHub Actions"
-    apply     = "CI: terraform apply from GitHub Actions (main branch, approved environment)"
+    apply     = "CI: terraform apply from GitHub Actions (main branch only)"
     silver    = "Bronze to silver transform"
     gold      = "Gold feature build"
     training  = "Model training (reads gold, writes MLflow artifacts)"
