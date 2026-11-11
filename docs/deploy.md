@@ -11,8 +11,8 @@ push to main -> GitHub Actions: tests -> build a wheel -> copy it and deploy/vm/
 - `.github/workflows/deploy.yml` runs on every push to `main` that touches `src/`, `deploy/`, `pyproject.toml` or the workflow itself (or
   by hand from the Actions tab). It runs the tests first; only if they pass does it build the package, copy it and `deploy/vm/setup.sh`
   to the VM (`gcloud compute scp`) and run `sudo setup.sh`, which installs the package and (re)configures Dagster.
-- `.github/workflows/terraform.yml` plans infrastructure changes on pull requests and applies them after the merge, once approved in
-  the `dev-infra` GitHub environment (see `infra/README.md`).
+- `.github/workflows/terraform.yml` plans infrastructure changes on pull requests and applies them automatically after the merge
+  (see `infra/README.md`). Review the plan on the pull request: there is no later approval.
 - GitHub authenticates to Google with Workload Identity Federation (no keys). Only runs of the `main` branch of this repository can act as
   the deploy service account `firms-ua-dev-deploy`. That account may log in to this one VM through the IAP tunnel (OS Login with sudo) and
   nothing else.

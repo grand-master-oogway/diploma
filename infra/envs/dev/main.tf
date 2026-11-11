@@ -79,8 +79,8 @@ module "github_oidc" {
 }
 
 # The apply account manages exactly the resource types in this configuration. projectIamAdmin and serviceAccountAdmin let
-# it change IAM, which makes it effectively an administrator of the project: only main-branch runs approved in the GitHub
-# environment can use it (see github_oidc and .github/workflows/terraform.yml).
+# it change IAM, which makes it effectively an administrator of the project: only main-branch runs of this repository
+# can use it (see github_oidc and .github/workflows/terraform.yml).
 resource "google_project_iam_member" "apply" {
   for_each = toset([
     "roles/storage.admin",                   # buckets and bucket IAM

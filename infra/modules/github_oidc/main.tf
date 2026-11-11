@@ -34,7 +34,7 @@ resource "google_service_account_iam_member" "deploy" {
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repo_ref/${var.github_repository_id}:refs/heads/main"
 }
 
-# Terraform apply: only runs of the main branch (after merge). The workflow job also waits for approval in a GitHub environment.
+# Terraform apply: only runs of the main branch (after merge).
 resource "google_service_account_iam_member" "apply" {
   service_account_id = var.apply_service_account_id
   role               = "roles/iam.workloadIdentityUser"
