@@ -73,8 +73,36 @@ module "github_oidc" {
   github_repository_id      = var.github_repository_id
   deploy_service_account_id = module.iam.service_account_names["deploy"]
   plan_service_account_id   = module.iam.service_account_names["plan"]
+  apply_service_account_id  = module.iam.service_account_names["apply"]
 
   depends_on = [google_project_service.apis]
+}
+
+# The apply account manages exactly the resource types in this configuration. projectIamAdmin and serviceAccountAdmin let
+# it change IAM, which makes it effectively an administrator of the project: only main-branch runs approved in the GitHub
+# environment can use it (see github_oidc and .github/workflows/terraform.yml).
+resource "google_project_iam_member" "apply" {
+  for_each = toset([
+    "roles/storage.admin",                   # buckets and bucket IAM
+    "roles/compute.admin",                   # network, firewall, router/NAT, VM and its IAM
+    "roles/iam.serviceAccountAdmin",         # service accounts and their IAM
+    "roles/iam.serviceAccountUser",          # attach the ingestion account to the VM
+    "roles/iam.workloadIdentityPoolAdmin",   # GitHub OIDC pool and provider
+    "roles/resourcemanager.projectIamAdmin", # project-level role bindings
+    "roles/secretmanager.admin",             # MAP_KEY secret container and its IAM (not the secret value)
+    "roles/iap.admin",                       # IAP tunnel permission on the VM
+    "roles/serviceusage.serviceUsageAdmin",  # enable APIs
+  ])
+
+  project = var.project_id
+  role    = each.key
+  member  = module.iam.service_account_members["apply"]
+}
+
+resource "google_storage_bucket_iam_member" "apply_state" {
+  bucket = var.state_bucket
+  role   = "roles/storage.objectAdmin"
+  member = module.iam.service_account_members["apply"]
 }
 
 # The plan account reads every resource and the IAM policies, and may use the Terraform state bucket (read state, hold the lock).

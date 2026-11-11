@@ -30,3 +30,8 @@ variable "plan_service_account_id" {
   type        = string
   description = "Resource name of the account used for terraform plan."
 }
+
+variable "apply_service_account_id" {
+  type        = string
+  description = "Resource name of the account used for terraform apply (main branch only)."
+}

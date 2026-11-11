@@ -63,8 +63,9 @@ Python 3.14 venv. Nothing is installed or run yet.
     - NRT: re-fetch the last 2-3 days every ~3 hours (the real cadence comes from the probe).
     - S-NPP: stop after its end date, taken from configuration, not code.
     - SP catch-up: a monthly job reads the availability endpoint and backfills new SP windows.
-16. **Deployment on the Dagster VM.** systemd services for the webserver, the daemon and the code location, plus a Postgres metadata
-    database (apt). No public port (IAP tunnel to the UI). The attached service account provides Application Default
+16. **Deployment on the Dagster VM.** systemd services for the webserver and the daemon (the code location is loaded with `-m`).
+    Metadata uses the default SQLite storage in `DAGSTER_HOME` (one VM, few concurrent runs); move to Postgres through `dagster.yaml`
+    only if lock errors appear. Implemented in `infra/envs/dev/startup.sh.tftpl`, see `docs/deploy.md`. No public port (IAP tunnel to the UI). The attached service account provides Application Default
     Credentials, Cloud NAT provides egress. No ad-hoc analytics on this VM; that belongs on the separate analytics VM.
 
 ## Local development and tests

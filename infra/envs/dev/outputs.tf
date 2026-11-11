@@ -21,6 +21,7 @@ output "github_variables" {
     WIF_PROVIDER           = module.github_oidc.provider_name
     DEPLOY_SERVICE_ACCOUNT = module.iam.service_account_emails["deploy"]
     WIF_SERVICE_ACCOUNT    = module.iam.service_account_emails["plan"]
+    APPLY_SERVICE_ACCOUNT  = module.iam.service_account_emails["apply"]
     TF_STATE_BUCKET        = var.state_bucket
   }
 }

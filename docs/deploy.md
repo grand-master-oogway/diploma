@@ -3,13 +3,16 @@
 ## How code reaches the VM (CD)
 
 ```
-push to main -> GitHub Actions: tests -> build a wheel -> copy it to the VM over IAP -> install it into /opt/firms-ua/venv
+push to main -> GitHub Actions: tests -> build a wheel -> copy it and deploy/vm/setup.sh to the VM over IAP
+             -> install into /opt/firms-ua/venv, configure and restart Dagster
 ```
 
 - `.github/workflows/ci.yml` runs the tests on every pull request and push.
-- `.github/workflows/deploy.yml` runs on every push to `main` that touches `src/`, `pyproject.toml` or the workflow itself (or by hand from
-  the Actions tab). It runs the tests first; only if they pass does it build the package, copy it to the VM (`gcloud compute scp`) and
-  install it (`sudo firms-ua-install`).
+- `.github/workflows/deploy.yml` runs on every push to `main` that touches `src/`, `deploy/`, `pyproject.toml` or the workflow itself (or
+  by hand from the Actions tab). It runs the tests first; only if they pass does it build the package, copy it and `deploy/vm/setup.sh`
+  to the VM (`gcloud compute scp`) and run `sudo setup.sh`, which installs the package and (re)configures Dagster.
+- `.github/workflows/terraform.yml` plans infrastructure changes on pull requests and applies them after the merge, once approved in
+  the `dev-infra` GitHub environment (see `infra/README.md`).
 - GitHub authenticates to Google with Workload Identity Federation (no keys). Only runs of the `main` branch of this repository can act as
   the deploy service account `firms-ua-dev-deploy`. That account may log in to this one VM through the IAP tunnel (OS Login with sudo) and
   nothing else.
@@ -56,6 +59,27 @@ firms-ua ingest --source VIIRS_NOAA20_SP --date 2025-07-15
 
 If the startup script changes in Terraform, restart the VM once for it to run again (step 3 above).
 
-## Later
+## Dagster
 
-Dagster and its metadata database will run as systemd services on this VM; the deploy job will then also restart them. See `dagster_notes.md`.
+Two systemd services run on the VM as the `firms-ua` system user: `dagster-webserver` (UI on `127.0.0.1:3000` only) and `dagster-daemon`
+(schedules, run queue, backfills). `DAGSTER_HOME` is `/var/lib/firms-ua/dagster`. It holds `dagster.yaml` and the SQLite metadata: run
+history, event logs, partition status and schedule state. Pipeline data is never stored there. All of this is written by
+`deploy/vm/setup.sh` on every deploy, so a change ships by merging, with no Terraform apply or VM reset. The deploy restarts both
+services, which interrupts runs in progress. Re-launch them: days already fetched are skipped.
+
+Open the UI through an IAP tunnel, then browse to http://localhost:3000:
+
+```
+gcloud compute ssh firms-ua-dev-dagster --zone europe-west1-b --project nasa-firms --tunnel-through-iap -- -N -L 3000:127.0.0.1:3000
+```
+
+Historical backfill: open `firms_raw` in the UI, then **Materialize**, select all partitions, and launch the backfill with the
+downstream asset `firms_bronze`. The single-run policy makes this one run. The `firms_api` pool and the client-side budget (4,500 of 5,000
+transactions per 10 minutes) pace the requests, so the full history takes about 30 minutes or more. Launching it again is safe.
+
+Forward fill: turn on `forward_fill_schedule`. It runs daily at 06:00 UTC and looks at the last 3 complete days. Each day is fetched
+only once: days already in the ingestion log are skipped, so normally only yesterday is requested and bronze gets no duplicates. NRT
+detections that arrive after the fetch are not chased. SP replaces NRT later. `force: true` in the run config refetches a day; it is
+for manual repair only, because it adds a second copy to bronze.
+
+Logs: `journalctl -u dagster-daemon -f` and `journalctl -u dagster-webserver -f`.
