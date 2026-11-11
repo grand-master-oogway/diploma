@@ -10,6 +10,7 @@ on:
     paths:
       - "src/**"
       - "pyproject.toml"
+      - "deploy/**"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
@@ -23,6 +24,8 @@ permissions:
 env:
   VM_NAME: firms-ua-dev-dagster
   VM_ZONE: europe-west1-b
+  # Must match the Terraform naming "<project_name>-<env>" (buckets firms-ua-dev-<layer>, secret firms-ua-dev-map-key).
+  NAME_PREFIX: firms-ua-dev
 
 jobs:
   test:
@@ -53,17 +56,18 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Copy the package to the VM and install it
+      - name: Copy the package to the VM, install it and restart Dagster
         env:
           PROJECT: ${{ vars.GCP_PROJECT_ID }}
         run: |
           WHEEL="$(ls dist/*.whl)"
           NAME="$(basename "$WHEEL")"
           COMMON=(--zone "$VM_ZONE" --project "$PROJECT" --tunnel-through-iap --quiet --strict-host-key-checking=no)
+          ARGS="\"\$HOME/$NAME\" gs://$NAME_PREFIX $PROJECT projects/$PROJECT/secrets/$NAME_PREFIX-map-key"
           # Copy into the deploy user's own home directory: a shared /tmp can hold files of other users that it may not overwrite.
-          gcloud compute scp "${COMMON[@]}" "$WHEEL" "$VM_NAME:$NAME"
+          gcloud compute scp "${COMMON[@]}" "$WHEEL" deploy/vm/setup.sh "$VM_NAME:~/"
           gcloud compute ssh "$VM_NAME" "${COMMON[@]}" \
-            --command "sudo /usr/local/sbin/firms-ua-install \"\$HOME/$NAME\" && rm -f \"\$HOME/$NAME\""
+            --command "sudo bash \"\$HOME/setup.sh\" $ARGS; status=\$?; rm -f \"\$HOME/$NAME\" \"\$HOME/setup.sh\"; exit \$status"
 
       - name: Summary
         run: echo "Installed ${GITHUB_SHA} on ${VM_NAME}" >> "$GITHUB_STEP_SUMMARY"

@@ -1,12 +1,23 @@
 name: terraform
 
+# Pull requests: validate + plan (read-only account). Merge to main: plan + apply, after approval in the `dev-infra`
+# GitHub environment, with the apply account (usable only by main-branch runs).
+
 on:
   pull_request:
     paths: ["infra/**", ".github/workflows/terraform.yml"]
+  push:
+    branches: [main]
+    paths: ["infra/**", ".github/workflows/terraform.yml"]
+  workflow_dispatch:
 
 permissions:
   contents: read
   id-token: write # Workload Identity Federation
+
+concurrency:
+  group: terraform-dev
+  cancel-in-progress: false
 
 env:
   TF_VERSION: "1.9.8"
@@ -34,9 +45,9 @@ jobs:
 
   plan:
     # Needs repository variables WIF_PROVIDER, WIF_SERVICE_ACCOUNT, TF_STATE_BUCKET, GCP_PROJECT_ID.
-    # Skipped until the one-time bootstrap in infra/README.md is done. Apply is never run from CI.
+    # Skipped until the one-time bootstrap in infra/README.md is done.
     needs: validate
-    if: vars.WIF_PROVIDER != ''
+    if: github.event_name == 'pull_request' && vars.WIF_PROVIDER != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,3 +65,30 @@ jobs:
         run: |
           terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
           terraform plan -input=false -lock-timeout=60s
+
+  apply:
+    # Needs repository variable APPLY_SERVICE_ACCOUNT and a GitHub environment `dev-infra` with a required reviewer
+    # (Settings > Environments), so nothing is applied without a person approving the run.
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.APPLY_SERVICE_ACCOUNT != ''
+    runs-on: ubuntu-latest
+    environment: dev-infra
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.APPLY_SERVICE_ACCOUNT }}
+      - name: Plan
+        working-directory: ${{ env.ENV_DIR }}
+        env:
+          TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          terraform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          terraform plan -input=false -lock-timeout=60s -out=tfplan
+      - name: Apply
+        working-directory: ${{ env.ENV_DIR }}
+        run: terraform apply -input=false -lock-timeout=60s tfplan

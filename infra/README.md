@@ -11,7 +11,16 @@ modules/vm        Dagster VM (no external IP, runs as the ingestion service acco
 envs/dev          dev environment (separate state); prod to be added the same way
 ```
 
-Never run `terraform apply` from CI. Apply locally after reviewing the plan.
+Changes are applied by CI: a pull request shows `terraform plan` (read-only account); after the merge to `main`, the `apply` job
+plans again and applies once a reviewer approves the run in the `dev-infra` GitHub environment. It uses the `apply` service account,
+which only main-branch runs can impersonate. Local `apply` is only for the bootstrap below.
+
+## Enabling CI apply (once)
+1. Apply locally once, so the apply account and its bindings exist: `terraform plan` / `terraform apply` in `envs/dev`.
+2. Add repository variable `APPLY_SERVICE_ACCOUNT` from `terraform output github_variables`.
+3. Create the GitHub environment `dev-infra` (Settings > Environments) with yourself as required reviewer and deployments limited to `main`.
+
+Until `APPLY_SERVICE_ACCOUNT` is set, the `apply` job is skipped.
 
 ## One-time bootstrap (manual)
 1. `gcloud auth login && gcloud auth application-default login`

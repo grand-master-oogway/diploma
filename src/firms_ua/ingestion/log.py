@@ -3,7 +3,7 @@ Read and write the ingestion log (one small file per entry, in the raw storage).
 """
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import polars as pl
 
@@ -15,6 +15,8 @@ from firms_ua.storage.base import Storage
 WindowKey = tuple[str, date, int]
 # (source, start_date, day_range, requested_at in epoch microseconds)
 RequestKey = tuple[str, date, int, int]
+# (source, day)
+DayKey = tuple[str, date]
 
 
 def epoch_us(moment: datetime) -> int:
@@ -107,6 +109,16 @@ def ok_windows(log: pl.DataFrame, stage: str) -> set[WindowKey]:
     """
     ok = log.filter((pl.col("stage") == stage) & (pl.col("status") == "ok"))
     return set(zip(ok["source"].to_list(), ok["start_date"].to_list(), ok["day_range"].to_list(), strict=True))
+
+
+def covered_days(log: pl.DataFrame, stage: str) -> set[DayKey]:
+    """
+    Return every `(source, day)` inside a window with a successful entry for `stage`.
+
+    Coverage is by day, not by window, so a day fetched in any window (a 5-day backfill window, a 1-day forward-fill window,
+    a CLI run) is never requested again. A logged zero-row response counts as covered.
+    """
+    return {(source, start + timedelta(days=i)) for source, start, day_range in ok_windows(log, stage) for i in range(day_range)}
 
 
 def ok_requests(log: pl.DataFrame, stage: str) -> set[RequestKey]:

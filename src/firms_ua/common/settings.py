@@ -2,10 +2,13 @@
 Environment-driven settings.
 """
 
+from datetime import date
+
 from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from firms_ua.common.secrets import clean_secret, read_secret
+from firms_ua.common.sources import SNPP_DEFAULT_LAST_DAY
 
 
 class Settings(BaseSettings):
@@ -27,6 +30,11 @@ class Settings(BaseSettings):
     request_timeout_s: float = 60.0
     max_retries: int = 5
     log_level: str = "INFO"
+    # Client-side MAP_KEY budget: FIRMS allows 5,000 transactions per 10 minutes; keep a safety margin.
+    budget_transactions: int = 4500
+    budget_period_s: float = 600.0
+    # Last day Suomi NPP delivers data (delivery ceased); later days are not requested.
+    snpp_last_day: date = SNPP_DEFAULT_LAST_DAY
 
     @field_validator("map_key", mode="before")
     @classmethod
