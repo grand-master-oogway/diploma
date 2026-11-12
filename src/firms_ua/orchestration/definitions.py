@@ -8,11 +8,12 @@ import dagster as dg
 
 from firms_ua.orchestration.assets import firms_bronze, firms_raw
 from firms_ua.orchestration.resources import FirmsPipeline
-from firms_ua.orchestration.schedules import forward_fill_schedule, ingest_job
+from firms_ua.orchestration.schedules import ingest_job, ingest_schedule, ingestion_automation
 
 defs: Final = dg.Definitions(
     assets=[firms_raw, firms_bronze],
     jobs=[ingest_job],
-    schedules=[forward_fill_schedule],
+    schedules=[ingest_schedule],
+    sensors=[ingestion_automation],
     resources={"pipeline": FirmsPipeline()},
 )

@@ -2,12 +2,12 @@
 Tests for the pure planning behind the Dagster assets and the forward-fill schedule.
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 from firms_ua.common.sources import default_catalog
 from firms_ua.common.windows import Window
 from firms_ua.orchestration.partitions import to_key, to_partition
-from firms_ua.orchestration.planning import days_by_satellite, expected_days, forward_fill_partitions, run_windows
+from firms_ua.orchestration.planning import days_by_satellite, expected_days, missing_ranges, run_windows
 
 CATALOG = default_catalog()
 
@@ -52,13 +52,23 @@ def test_done_days_are_not_planned_and_expected_days_ignore_them() -> None:
     assert expected_days(CATALOG, parts) == [("VIIRS_NOAA20_NRT", date(2026, 8, 1)), ("VIIRS_NOAA20_NRT", date(2026, 8, 2))]
 
 
-def test_forward_fill_skips_satellites_past_their_last_day() -> None:
+def test_missing_ranges_first_run_is_the_whole_covered_history() -> None:
     """
-    The forward fill covers the last complete days only, and not S-NPP after its delivery ended.
+    With nothing materialized, each satellite gets one range over the days it covers.
     """
-    parts = forward_fill_partitions(CATALOG, date(2026, 11, 11), 3)
-    assert ("noaa20", date(2026, 11, 8)) in parts
-    assert ("noaa21", date(2026, 11, 10)) in parts
-    assert not any(name == "snpp" for name, _ in parts)
-    assert not any(day == date(2026, 11, 11) for _, day in parts)
-    assert len(parts) == 6
+    ranges = missing_ranges(CATALOG, set(), date(2022, 2, 24), date(2026, 11, 10))
+    assert ranges == [
+        ("noaa20", date(2022, 2, 24), date(2026, 11, 10)),
+        ("noaa21", date(2023, 3, 1), date(2026, 11, 10)),
+        ("snpp", date(2022, 2, 24), date(2026, 11, 2)),
+    ]
+
+
+def test_missing_ranges_later_runs_request_only_gaps_and_the_new_day() -> None:
+    """
+    Materialized days are left out; a failed day in the middle comes back as its own range.
+    """
+    last = date(2024, 3, 10)
+    done = {("noaa20", date(2024, 3, 1) + timedelta(days=i)) for i in range(9)} - {("noaa20", date(2024, 3, 5))}
+    ranges = missing_ranges({"noaa20": CATALOG["noaa20"]}, done, date(2024, 3, 1), last)
+    assert ranges == [("noaa20", date(2024, 3, 5), date(2024, 3, 5)), ("noaa20", last, last)]
