@@ -2,14 +2,14 @@
 Pure planning for the Dagster ingestion assets (no Dagster imports, no clock).
 
 A partition is `(satellite, day)`. These functions turn the partitions of one run into the `(source, day)` pairs it
-must deliver and the request windows still needed, and pick the partitions the forward-fill schedule looks at.
+must deliver and the request windows still needed, and find the ranges the automatic ingestion schedule requests.
 """
 
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Set
 from datetime import date, timedelta
 
-from firms_ua.common.sources import Satellite, covers, source_for, windows_for_days
+from firms_ua.common.sources import Satellite, contiguous_runs, covers, source_for, windows_for_days
 from firms_ua.common.windows import Window
 from firms_ua.ingestion.log import DayKey
 
@@ -63,12 +63,21 @@ def run_windows(
     return windows
 
 
-def forward_fill_partitions(catalog: Mapping[str, Satellite], today: date, lookback_days: int) -> list[Partition]:
+def missing_ranges(
+    catalog: Mapping[str, Satellite],
+    materialized: Set[Partition],
+    first: date,
+    last: date,
+) -> list[tuple[str, date, date]]:
     """
-    Return the partitions of the last `lookback_days` complete UTC days before `today`, per covered satellite.
+    Return `(satellite, first_day, last_day)` runs of consecutive days in `[first, last]` that need fetching.
 
-    Days already fetched are skipped by the asset, so in a normal day only yesterday is requested; the older days
-    catch up a day missed because a run failed or the schedule was off.
+    A day needs fetching if the satellite covers it and its partition is not in `materialized`. On the first call this is
+    the whole history (one range per satellite); afterwards normally just the newest day, plus any day whose run failed.
     """
-    days = [today - timedelta(days=offset) for offset in range(lookback_days, 0, -1)]
-    return [(name, day) for name, satellite in sorted(catalog.items()) for day in days if covers(satellite, day)]
+    ranges: list[tuple[str, date, date]] = []
+    for name, satellite in sorted(catalog.items()):
+        days = [first + timedelta(days=i) for i in range((last - first).days + 1)]
+        todo = [d for d in days if covers(satellite, d) and (name, d) not in materialized]
+        ranges.extend((name, a, b) for a, b in contiguous_runs(todo))
+    return ranges

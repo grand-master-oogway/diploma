@@ -2,7 +2,7 @@
 End-to-end runs of the Dagster ingestion assets with local storage and a fake FIRMS fetcher (no network).
 """
 
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import dagster as dg
@@ -18,8 +18,10 @@ from firms_ua.orchestration.assets import COMPLETE_CHECK, firms_bronze, firms_ra
 from firms_ua.orchestration.definitions import defs
 from firms_ua.orchestration.partitions import to_key
 from firms_ua.orchestration.resources import Fetcher, FirmsPipeline
+from firms_ua.orchestration.schedules import ingest_job, ingest_schedule
 from firms_ua.storage.local import LocalStorage
 
+RANGE_START = "dagster/asset_partition_range_start"
 HEADER = "latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight\n"
 
 
@@ -69,7 +71,8 @@ def test_definitions_load() -> None:
     """
     repo = defs.get_repository_def()
     assert {k.to_user_string() for k in repo.asset_graph.get_all_asset_keys()} == {"firms_raw", "firms_bronze"}
-    assert [s.name for s in repo.schedule_defs] == ["forward_fill_schedule"]
+    assert [s.name for s in repo.schedule_defs] == ["ingest_schedule"]
+    assert [s.name for s in repo.sensor_defs] == ["ingestion_automation"]
 
 
 def test_raw_then_bronze_passes_the_check_and_rerun_skips(tmp_path: Path) -> None:
@@ -107,6 +110,49 @@ def test_day_inside_an_earlier_window_is_not_fetched_again(tmp_path: Path) -> No
     (check,) = result.get_asset_check_evaluations()
     assert check.passed
     assert read_log(raw).filter(pl.col("stage") == "raw").height == 1
+
+
+def test_bronze_is_requested_after_raw_for_history_partitions(tmp_path: Path) -> None:
+    """
+    Materializing an old raw partition makes the automation request the same bronze partition, and only that one.
+    """
+    instance = dg.DagsterInstance.ephemeral()
+    pipeline = FakePipeline(root=str(tmp_path))
+    test_defs = dg.Definitions(assets=[firms_raw, firms_bronze], resources={"pipeline": pipeline})
+    old = to_key(("noaa20", date(2024, 3, 1)))
+    first = dg.evaluate_automation_conditions(defs=test_defs, instance=instance)
+    assert first.total_requested == 0
+    raw = dg.materialize([firms_raw], partition_key=old, instance=instance, resources={"pipeline": pipeline})
+    assert raw.success
+    after = dg.evaluate_automation_conditions(defs=test_defs, instance=instance, cursor=first.cursor)
+    assert after.get_requested_partitions(firms_bronze.key) == {old}
+    assert after.total_requested == 1
+
+
+def test_schedule_requests_unmaterialized_ranges_and_the_run_covers_them(tmp_path: Path) -> None:
+    """
+    The schedule asks only for days not materialized yet, and a run with its range tags fetches exactly those days.
+    """
+    with dg.instance_for_test() as instance:
+        _check_schedule(instance, FakePipeline(root=str(tmp_path)))
+
+
+def _check_schedule(instance: dg.DagsterInstance, pipeline: FakePipeline) -> None:
+    done = dg.materialize(
+        [firms_raw], partition_key=to_key(("noaa20", date(2026, 11, 9))), instance=instance, resources={"pipeline": pipeline}
+    )
+    assert done.success
+    context = dg.build_schedule_context(instance=instance, scheduled_execution_time=datetime(2026, 11, 11, 6, tzinfo=UTC))
+    requests = ingest_schedule(context)
+    assert isinstance(requests, list)
+    noaa20 = [r for r in requests if r.tags[RANGE_START].endswith("|noaa20")]
+    assert len(noaa20) == 2  # history up to 11-08, then 11-10
+    assert noaa20[1].tags[RANGE_START] == to_key(("noaa20", date(2026, 11, 10)))
+
+    job = dg.Definitions(assets=[firms_raw], jobs=[ingest_job], resources={"pipeline": pipeline}).resolve_job_def(ingest_job.name)
+    result = job.execute_in_process(instance=instance, tags=dict(noaa20[1].tags))
+    assert result.success
+    assert result.asset_materializations_for_node("firms_raw")[0].metadata["source_days"].value == 1
 
 
 def test_failed_fetch_fails_the_run(tmp_path: Path) -> None:

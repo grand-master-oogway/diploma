@@ -25,6 +25,9 @@ from firms_ua.storage.base import Storage
 # Concurrency pool for anything that spends the MAP_KEY budget; its limit (1) is set in dagster.yaml.
 FIRMS_API_POOL: Final = "firms_api"
 COMPLETE_CHECK: Final = "days_complete"
+# Build bronze for a partition as soon as its raw partition is materialized (and nothing upstream is missing or running).
+# `eager()` alone only looks at the latest day; history partitions must follow raw too, so that restriction is removed.
+BRONZE_AUTOMATION: Final = dg.AutomationCondition.eager().without(dg.AutomationCondition.in_latest_time_window())
 _GROUP: Final = "ingestion"
 _MAX_LISTED: Final = 20
 
@@ -100,6 +103,7 @@ def _raw_objects(raw: Storage, days: list[DayKey], max_day_range: int) -> list[R
     partitions_def=ingest_partitions,
     backfill_policy=dg.BackfillPolicy.single_run(),
     deps=[firms_raw],
+    automation_condition=BRONZE_AUTOMATION,
     group_name=_GROUP,
     kinds={"python", "parquet"},
     check_specs=[dg.AssetCheckSpec(COMPLETE_CHECK, asset="firms_bronze", blocking=True)],

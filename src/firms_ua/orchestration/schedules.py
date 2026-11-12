@@ -1,41 +1,63 @@
 """
-Jobs and schedules: the forward fill (each new day fetched once). Backfills are launched from the UI.
+Jobs, schedules and sensors: the ingestion runs on its own, with no manual launch.
+
+- `ingest_schedule` (daily, on by default) requests every raw partition Dagster has not materialized yet. The first tick
+  is the historical backfill (one run per satellite over 2022-02-24 .. yesterday); later ticks fetch the new day and
+  retry any day whose run failed.
+- Bronze follows raw through declarative automation: `ingestion_automation` builds bronze for every raw partition that
+  was just materialized.
 """
 
+from datetime import timedelta
 from typing import Final
 
 import dagster as dg
 
 from firms_ua.common.settings import Settings
-from firms_ua.common.sources import default_catalog
+from firms_ua.common.sources import PIPELINE_START, default_catalog
 from firms_ua.orchestration.assets import firms_bronze, firms_raw
-from firms_ua.orchestration.partitions import to_key
-from firms_ua.orchestration.planning import forward_fill_partitions
+from firms_ua.orchestration.partitions import to_key, to_partitions
+from firms_ua.orchestration.planning import missing_ranges
 
-# Look at the last few complete UTC days; days already fetched are skipped, so normally only yesterday is requested and
-# the older ones only catch up after a failed run or a pause. Fetching at 06:00 UTC leaves several hours after the day's
-# last overpass for NRT to arrive; detections that arrive later are filled in when SP replaces NRT.
-LOOKBACK_DAYS: Final = 3
+# 06:00 UTC leaves several hours after the day's last overpass for NRT to arrive; detections that arrive later are filled
+# in when SP replaces NRT.
+INGEST_CRON: Final = "0 6 * * *"
+_RANGE_START_TAG: Final = "dagster/asset_partition_range_start"
+_RANGE_END_TAG: Final = "dagster/asset_partition_range_end"
 
 ingest_job: Final = dg.define_asset_job(
     "firms_ingest_job",
-    selection=[firms_raw, firms_bronze],
-    description="FIRMS API -> raw -> bronze for the selected (day, satellite) partitions.",
+    selection=[firms_raw],
+    description="FIRMS API -> raw for the selected (day, satellite) partitions; bronze follows automatically.",
+)
+
+# Evaluates `firms_bronze`'s automation condition every minute and launches bronze runs (as backfills, so a whole
+# backfill's partitions are built in one run). Running by default: without it bronze is never built.
+ingestion_automation: Final = dg.AutomationConditionSensorDefinition(
+    "ingestion_automation",
+    target=dg.AssetSelection.assets(firms_bronze),
+    default_status=dg.DefaultSensorStatus.RUNNING,
+    minimum_interval_seconds=60,
 )
 
 
-@dg.schedule(job=ingest_job, cron_schedule="0 6 * * *", execution_timezone="UTC", default_status=dg.DefaultScheduleStatus.STOPPED)
-def forward_fill_schedule(context: dg.ScheduleEvaluationContext) -> list[dg.RunRequest]:
+@dg.schedule(job=ingest_job, cron_schedule=INGEST_CRON, execution_timezone="UTC", default_status=dg.DefaultScheduleStatus.RUNNING)
+def ingest_schedule(context: dg.ScheduleEvaluationContext) -> list[dg.RunRequest]:
     """
-    Request the last `LOOKBACK_DAYS` days for every satellite still delivering, one run per partition (no refetch).
+    Request one run per satellite and range of consecutive days that are not materialized yet (up to yesterday).
     """
     today = context.scheduled_execution_time.date()
+    materialized = set(to_partitions(context.instance.get_materialized_partitions(firms_raw.key)))
     catalog = default_catalog(Settings().snpp_last_day)
+    ranges = missing_ranges(catalog, materialized, PIPELINE_START, today - timedelta(days=1))
     return [
         dg.RunRequest(
-            run_key=f"forward-fill:{today.isoformat()}:{satellite}:{day.isoformat()}",
-            partition_key=to_key((satellite, day)),
-            tags={"trigger": "forward_fill"},
+            run_key=f"ingest:{today.isoformat()}:{satellite}:{first.isoformat()}:{last.isoformat()}",
+            tags={
+                _RANGE_START_TAG: to_key((satellite, first)),
+                _RANGE_END_TAG: to_key((satellite, last)),
+                "trigger": "ingest_schedule",
+            },
         )
-        for satellite, day in forward_fill_partitions(catalog, today, LOOKBACK_DAYS)
+        for satellite, first, last in ranges
     ]

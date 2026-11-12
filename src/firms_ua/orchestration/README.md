@@ -8,10 +8,10 @@ Dagster definitions for the ingestion: FIRMS API -> raw -> bronze. They are thin
 | File | Content |
 |---|---|
 | `partitions.py` | `ingest_partitions`: one UTC day (from 2022-02-24) x one satellite (`noaa20`, `noaa21`, `snpp`) |
-| `planning.py` | partitions -> request windows; partitions refreshed by the forward fill |
+| `planning.py` | partitions -> request windows; ranges of days the schedule still has to fetch |
 | `resources.py` | `FirmsPipeline`: settings, storages, throttled fetcher; MAP_KEY read at run time, never in run config |
-| `assets.py` | `firms_raw` (fetch), `firms_bronze` (build Parquet) and its blocking `windows_complete` check |
-| `schedules.py` | `firms_ingest_job` and `forward_fill_schedule` (daily 06:00 UTC, last 3 days; days already fetched are skipped) |
+| `assets.py` | `firms_raw` (fetch), `firms_bronze` (build Parquet, automation-driven) and its blocking `days_complete` check |
+| `schedules.py` | `firms_ingest_job` (raw only), `ingest_schedule` (daily 06:00 UTC, every unmaterialized raw partition) and the `ingestion_automation` sensor (builds bronze after raw) |
 | `definitions.py` | the code location |
 
 ## How a run works
@@ -36,4 +36,7 @@ $env:FIRMS_STORAGE_ROOT = "./data"
 dagster dev -m firms_ua.orchestration.definitions
 ```
 
-Backfill: in the UI open `firms_raw` -> Materialize -> select partitions. The forward-fill schedule starts stopped; turn it on in the UI.
+Nothing is launched by hand. `ingest_schedule` (on by default, daily 06:00 UTC) requests every raw partition not materialized yet: its
+first tick is the whole history, later ticks the new day plus any day whose run failed. `firms_bronze` has an automation condition
+(eager, for every partition, not only the latest day), and the `ingestion_automation` sensor (on by default, checks every minute)
+builds bronze for each raw partition just materialized. A manual `firms_raw` materialization from the UI also works.

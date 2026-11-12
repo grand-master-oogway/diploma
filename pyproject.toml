@@ -45,6 +45,9 @@ pythonpath = ["tests"]  # lets tests import the shared fakes module
 filterwarnings = [
     # `backfill_policy` is marked beta in Dagster 1.13; we rely on it on purpose (single-run backfills). Re-check on upgrade.
     "ignore:Parameter `backfill_policy` of function `asset` is currently in beta",
+    # Raised inside Dagster's own automation test helper (`evaluate_automation_conditions`).
+    "ignore:Parameter `include_sources` of function `AssetSelection.all` is currently in beta",
+    "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning:dagster",
     # Raised inside Dagster's own pydantic compatibility layer, not by our code.
     "ignore:The `__fields__` attribute is deprecated:DeprecationWarning:dagster_shared",
 ]

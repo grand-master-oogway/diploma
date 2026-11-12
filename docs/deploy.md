@@ -70,16 +70,21 @@ services, which interrupts runs in progress. Re-launch them: days already fetche
 Open the UI through an IAP tunnel, then browse to http://localhost:3000:
 
 ```
-gcloud compute ssh firms-ua-dev-dagster --zone europe-west1-b --project nasa-firms --tunnel-through-iap -- -N -L 3000:127.0.0.1:3000
+gcloud compute ssh firms-ua-dev-dagster --zone europe-west1-b --project nasa-firms --tunnel-through-iap --ssh-flag="-N" --ssh-flag="-L 3000:127.0.0.1:3000"
 ```
 
-Historical backfill: open `firms_raw` in the UI, then **Materialize**, select all partitions, and launch the backfill with the
-downstream asset `firms_bronze`. The single-run policy makes this one run. The `firms_api` pool and the client-side budget (4,500 of 5,000
-transactions per 10 minutes) pace the requests, so the full history takes about 30 minutes or more. Launching it again is safe.
+Ingestion runs by itself; nothing has to be launched by hand.
 
-Forward fill: turn on `forward_fill_schedule`. It runs daily at 06:00 UTC and looks at the last 3 complete days. Each day is fetched
-only once: days already in the ingestion log are skipped, so normally only yesterday is requested and bronze gets no duplicates. NRT
-detections that arrive after the fetch are not chased. SP replaces NRT later. `force: true` in the run config refetches a day; it is
-for manual repair only, because it adds a second copy to bronze.
+- `ingest_schedule` (on by default, daily 06:00 UTC) requests every `firms_raw` partition that Dagster has not materialized yet,
+  as one run per satellite and range of consecutive days. Its first tick is the historical backfill from 2022-02-24 to yesterday.
+  The `firms_api` pool and the client-side budget (4,500 of 5,000 transactions per 10 minutes) pace the requests, so the history
+  takes 30 minutes or more. Later ticks fetch the new day and retry any day whose run failed.
+- The `ingestion_automation` sensor (on by default, checks every minute) builds `firms_bronze` for each raw partition just
+  materialized.
+- Each day is fetched once. Days already in the ingestion log are skipped, so bronze gets no duplicates. NRT detections that
+  arrive after 06:00 are not chased, because SP replaces NRT later. `force: true` in the run config refetches a day; it is for
+  manual repair only, because it adds a second copy to bronze.
+- To start the backfill before the next 06:00 tick, open Automation → `ingest_schedule` → **Test schedule** → evaluate, then launch
+  the requested runs. Launching `firms_raw` from its asset page also works; days already fetched are skipped.
 
 Logs: `journalctl -u dagster-daemon -f` and `journalctl -u dagster-webserver -f`.
