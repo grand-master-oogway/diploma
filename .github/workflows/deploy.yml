@@ -63,7 +63,7 @@ jobs:
           WHEEL="$(ls dist/*.whl)"
           NAME="$(basename "$WHEEL")"
           COMMON=(--zone "$VM_ZONE" --project "$PROJECT" --tunnel-through-iap --quiet --strict-host-key-checking=no)
-          ARGS="\"\$HOME/$NAME\" gs://$NAME_PREFIX $PROJECT projects/$PROJECT/secrets/$NAME_PREFIX-map-key"
+          ARGS="\"\$HOME/$NAME\" gs://$NAME_PREFIX $PROJECT projects/$PROJECT/secrets/$NAME_PREFIX-map-key $NAME_PREFIX-silver@$PROJECT.iam.gserviceaccount.com"
           # Copy into the deploy user's own home directory: a shared /tmp can hold files of other users that it may not overwrite.
           gcloud compute scp "${COMMON[@]}" "$WHEEL" deploy/vm/setup.sh "$VM_NAME:~/"
           gcloud compute ssh "$VM_NAME" "${COMMON[@]}" \

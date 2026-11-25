@@ -44,6 +44,7 @@ fi
 export FIRMS_STORAGE_ROOT=${storage_root}
 export FIRMS_GCP_PROJECT=${project_id}
 export FIRMS_MAP_KEY_SECRET=${map_key_secret}
+export FIRMS_SILVER_SERVICE_ACCOUNT=${silver_service_account}
 exec /opt/firms-ua/venv/bin/firms-ua "$@"
 SCRIPT
 chmod 755 /usr/local/bin/firms-ua

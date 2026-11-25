@@ -7,6 +7,7 @@ resource "google_project_service" "apis" {
   for_each = toset([
     "storage.googleapis.com",
     "iam.googleapis.com",
+    "iamcredentials.googleapis.com", # service account impersonation (Dagster acts as the silver account)
     "secretmanager.googleapis.com",
     "compute.googleapis.com",
     "iap.googleapis.com",
@@ -132,9 +133,10 @@ module "vm" {
 
   # Strip any CR so the bash script is valid even if a Windows checkout turned the template into CRLF.
   startup_script = replace(templatefile("${path.module}/startup.sh.tftpl", {
-    storage_root   = "gs://${var.project_name}-${local.env}"
-    project_id     = var.project_id
-    map_key_secret = "projects/${var.project_id}/secrets/${module.secrets.map_key_secret_id}"
+    storage_root           = "gs://${var.project_name}-${local.env}"
+    project_id             = var.project_id
+    map_key_secret         = "projects/${var.project_id}/secrets/${module.secrets.map_key_secret_id}"
+    silver_service_account = module.iam.service_account_emails["silver"]
   }), "\r", "")
 
 }

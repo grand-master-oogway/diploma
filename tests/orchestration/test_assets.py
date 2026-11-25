@@ -67,12 +67,17 @@ def _run(tmp_path: Path, *, fail: bool = False) -> dg.ExecuteInProcessResult:
 
 def test_definitions_load() -> None:
     """
-    The code location loads with both assets and the forward-fill schedule.
+    The code location loads with the ingestion and silver assets, the forward-fill schedule and both sensors.
     """
     repo = defs.get_repository_def()
-    assert {k.to_user_string() for k in repo.asset_graph.get_all_asset_keys()} == {"firms_raw", "firms_bronze"}
+    assert {k.to_user_string() for k in repo.asset_graph.get_all_asset_keys()} == {
+        "firms_raw",
+        "firms_bronze",
+        "firms_h3_activity",
+        "firms_silver",
+    }
     assert [s.name for s in repo.schedule_defs] == ["ingest_schedule"]
-    assert [s.name for s in repo.sensor_defs] == ["ingestion_automation"]
+    assert sorted(s.name for s in repo.sensor_defs) == ["ingestion_automation", "silver_automation"]
 
 
 def test_raw_then_bronze_passes_the_check_and_rerun_skips(tmp_path: Path) -> None:

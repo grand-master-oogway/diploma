@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     storage_root: str = "./data"
     gcp_project: str | None = None  # only needed for gs:// storage roots
     max_day_range: int = 5
-    # Ukraine bbox (west, south, east, north), slightly buffered; clipped to polygon in silver.
+    # Ukraine bbox (west, south, east, north), slightly buffered; silver keeps only points within `border_buffer_km`.
     bbox: tuple[float, float, float, float] = (22.1, 44.4, 40.2, 52.4)
     request_timeout_s: float = 60.0
     max_retries: int = 5
@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     budget_period_s: float = 600.0
     # Last day Suomi NPP delivers data (delivery ceased); later days are not requested.
     snpp_last_day: date = SNPP_DEFAULT_LAST_DAY
+    # Service account the silver assets act as (impersonation; gs:// roots only). Unset: the process's own credentials.
+    silver_service_account: str | None = None
+    # Silver keeps detections inside Ukraine plus this strip outside the border (flagged by `in_ukraine`).
+    border_buffer_km: float = 30.0
 
     @field_validator("map_key", mode="before")
     @classmethod

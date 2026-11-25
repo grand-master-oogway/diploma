@@ -147,6 +147,7 @@ class ParquetTable(pa.DataFrameModel):
         *,
         partition_values: Mapping[str, object] | None = None,
         skip_existing: bool = False,
+        file_metadata: Mapping[str, str] | None = None,
     ) -> list[str]:
         """
         Validate `df` and write one new file per Hive partition; existing files are never touched.
@@ -158,6 +159,7 @@ class ParquetTable(pa.DataFrameModel):
             partition_values: Partition values to use when `df` has no rows (an empty frame carries no keys).
             skip_existing: Leave files that already exist alone instead of failing (the create-if-absent write itself
                 tells, so no listing or reading is needed); a rerun then only adds the missing files.
+            file_metadata: Extra key-value pairs for the Parquet metadata (lineage such as a reference file's hash).
 
         Returns:
             Keys of the files written (not the skipped ones).
@@ -177,7 +179,7 @@ class ParquetTable(pa.DataFrameModel):
             msg = f"{cls.table_name()}: an empty frame needs partition_values"
             raise ValueError(msg)
 
-        metadata = {"table": cls.table_name(), "version": str(cls.table_version())}
+        metadata = {**(file_metadata or {}), "table": cls.table_name(), "version": str(cls.table_version())}
         written: list[str] = []
         for values, group in groups.items():
             key = cls._part_key(dict(zip(keys, values, strict=True)), requested_at)
@@ -191,6 +193,64 @@ class ParquetTable(pa.DataFrameModel):
                 continue
             written.append(key)
         return written
+
+    @classmethod
+    def replace_partition(
+        cls,
+        df: pl.DataFrame,
+        store: Storage,
+        written_at: datetime,
+        partition_values: Mapping[str, object],
+        *,
+        file_metadata: Mapping[str, str] | None = None,
+    ) -> str:
+        """
+        Replace one partition: write a new file, read it back and validate it, then delete the partition's other files.
+
+        The replacement is idempotent (the same input gives the same data) but not atomic: between the write and the
+        deletes a reader can see the old and the new file together. An empty `df` still writes an (empty) file, so a
+        processed day with no rows differs from a day that was never built.
+
+        Args:
+            df: Full table frame for exactly this partition, partition columns included.
+            store: Storage of this table's layer.
+            written_at: Used for the unique file name.
+            partition_values: Value of every partition column.
+            file_metadata: Extra key-value pairs for the Parquet metadata.
+
+        Returns:
+            Key of the file written.
+
+        Raises:
+            SchemaError: If `df` or the file read back does not match the definition (nothing is deleted).
+            ValueError: If `df` holds rows of another partition.
+        """
+        keys = cls.partition_columns()
+        if set(partition_values) != set(keys):
+            msg = f"partition_values must name exactly {keys}, got {list(partition_values)}"
+            raise ValueError(msg)
+        outside = df.filter(~pl.all_horizontal(pl.col(k) == partition_values[k] for k in keys)).height
+        if outside:
+            msg = f"{cls.table_name()}: {outside} rows do not belong to partition {dict(partition_values)}"
+            raise ValueError(msg)
+        [key] = cls.write(df, store, written_at, partition_values=partition_values, file_metadata=file_metadata)
+        back = pl.read_parquet(io.BytesIO(store.get(key))).with_columns(
+            pl.lit(partition_values[k], dtype=cls.polars_schema()[k]).alias(k) for k in keys
+        )
+        cls.check(back.select(cls.column_names()))
+        folder = key.rsplit("/", 1)[0]
+        for old in store.list_keys(f"{folder}/"):
+            if old != key and old.rsplit("/", 1)[1].startswith("part-") and old.endswith(".parquet"):
+                store.delete(old)
+        return key
+
+    @classmethod
+    def part_files(cls, store: Storage, partition_values: Mapping[str, object]) -> list[str]:
+        """
+        Return the data files of one partition, sorted.
+        """
+        folders = "/".join(f"{k}={partition_values[k]}" for k in cls.partition_columns())
+        return [k for k in store.list_keys(f"{cls.dataset_prefix()}/{folders}/") if k.endswith(".parquet")]
 
     @classmethod
     def part_exists(cls, store: Storage, partition_values: Mapping[str, object], requested_at: datetime) -> bool:

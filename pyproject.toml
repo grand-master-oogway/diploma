@@ -10,6 +10,10 @@ dependencies = [
     "pandera[polars]>=0.20",
     "google-cloud-storage>=3",
     "pydantic-settings>=2.5",
+    # Silver: H3 cell ids, point-in-polygon and distances to the border in a metric projection.
+    "h3>=4.5",
+    "shapely>=2.2",
+    "pyproj>=3.8",
     # Keep both pinned to the same version (Dagster's API changes between minor releases).
     "dagster==1.13.29",
     "dagster-webserver==1.13.29",
@@ -45,6 +49,10 @@ pythonpath = ["tests"]  # lets tests import the shared fakes module
 filterwarnings = [
     # `backfill_policy` is marked beta in Dagster 1.13; we rely on it on purpose (single-run backfills). Re-check on upgrade.
     "ignore:Parameter `backfill_policy` of function `asset` is currently in beta",
+    # Silver's partition mappings (multi -> daily, and the 365-day hotspot window) are beta in Dagster 1.13 too.
+    "ignore:Class `MultiToSingleDimensionPartitionMapping` is currently in beta",
+    "ignore:Parameter `allow_nonexistent_upstream_partitions` of initializer `TimeWindowPartitionMapping.__init__` is currently in beta",
+    "ignore:datetime.datetime.utcfromtimestamp:DeprecationWarning:dagster",
     # Raised inside Dagster's own automation test helper (`evaluate_automation_conditions`).
     "ignore:Parameter `include_sources` of function `AssetSelection.all` is currently in beta",
     "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning:dagster",

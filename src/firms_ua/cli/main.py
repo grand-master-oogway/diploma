@@ -1,14 +1,15 @@
 """
 Command line entry point: builds the parser from the command modules and dispatches.
 
-Commands (one module each): `fetch`, `build-bronze`, `ingest` (cli/ingest.py), `probe` (cli/probe.py), `smoke` (cli/smoke.py).
+Commands (one module each): `fetch`, `build-bronze`, `ingest` (cli/ingest.py), `probe` (cli/probe.py), `smoke` (cli/smoke.py),
+`profile-bronze` (cli/profile.py).
 The exit code is 1 if a command reports failures.
 """
 
 import argparse
 import sys
 
-from firms_ua.cli import ingest, probe, smoke
+from firms_ua.cli import ingest, probe, profile, smoke
 from firms_ua.common.settings import Settings
 from logger.config import configure_logging
 
@@ -19,7 +20,7 @@ def main() -> None:
     """
     parser = argparse.ArgumentParser(prog="firms_ua")
     sub = parser.add_subparsers(dest="command", required=True)
-    for module in (ingest, probe, smoke):
+    for module in (ingest, probe, profile, smoke):
         module.register(sub)
     args = parser.parse_args()
     settings = Settings()

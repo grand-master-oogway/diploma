@@ -53,6 +53,14 @@ resource "google_storage_bucket_iam_member" "silver_write_silver" {
   member = google_service_account.component["silver"].member
 }
 
+# The Dagster VM runs as the ingestion account; its silver assets impersonate the silver account instead of widening
+# the ingestion account's own rights, so each stage keeps its least-privilege set.
+resource "google_service_account_iam_member" "ingestion_impersonates_silver" {
+  service_account_id = google_service_account.component["silver"].name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = google_service_account.component["ingestion"].member
+}
+
 # Gold build: read silver, create-only in gold (snapshots are immutable).
 resource "google_storage_bucket_iam_member" "gold_read_silver" {
   bucket = var.buckets["silver"]

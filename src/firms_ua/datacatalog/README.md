@@ -4,6 +4,7 @@ Table definitions only: one class per table, one file per layer. Nothing else be
 
 - `bronze.py`: `FirmsBronze`, all API columns as strings (`type` is optional: SP only, null in NRT), then lineage columns (`day_range`, `requested_at`, `source`, `start_date`). Hive partitions: `source` and `acq_date` (stored in folder names, not in the files).
 - `ingestion_log.py`: `IngestionLog` (`raw.ingestion_log`), one row per step attempt per request window; stored in the raw bucket, partitioned by `source`.
-- `silver.py`, `gold.py`: filled when those layers are built.
+- `silver.py`: `FirmsSilver` (`silver.firms_detections`, typed detections with derived columns and flags) and `H3DailyActivity` (`silver.h3_r9_daily_activity`, detections per H3 r9 cell and day). Both partitioned by UTC `acq_date`; see `silver/README.md`.
+- `gold.py`: filled when gold is built.
 
 A table is a subclass of `ParquetTable` (see `datacatalog_core/`): Polars-typed annotated columns plus `Config.name` and `Config.metadata` (version, partitions). Columns are non-nullable unless declared with `nullable=True`; `Field(description=...)` documents a column and `Field(metadata={...})` tags it.
