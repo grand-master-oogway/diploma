@@ -3,6 +3,7 @@
 ```
 modules/storage   raw/bronze/silver/gold/artifacts buckets (uniform access, public access blocked)
 modules/iam       one service account per component, least-privilege bucket roles; the ingestion account (Dagster VM) may impersonate the silver account
+modules/bigquery  BigLake external tables over bronze and silver (datasets dev_bronze, dev_silver; no data copied)
 modules/secrets   Secret Manager container for the FIRMS MAP_KEY (value added manually)
 modules/network   VPC, subnet, Cloud Router + Cloud NAT, IAP-only firewall
 modules/deploy_access  lets the GitHub deploy account reach the VM over IAP (OS Login with sudo)

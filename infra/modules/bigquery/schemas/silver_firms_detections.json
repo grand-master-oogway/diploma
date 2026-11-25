@@ -1,0 +1,178 @@
+{
+  "layer": "silver",
+  "table": "firms_detections",
+  "version": 1,
+  "path": "firms_detections/v1",
+  "hive_keys": "{acq_date:DATE}",
+  "description": "Typed FIRMS VIIRS detections: one row per detection of the latest response, SP and NRT in one schema. Questionable rows are flagged, not deleted (filtering is a gold parameter). Only detections farther than the border buffer outside Ukraine and exact repeats are dropped. A point is the pixel center, not the fire's location.",
+  "schema": [
+    {
+      "name": "detection_id",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "SHA-256 (32 hex) of source, latitude, longitude, acq_date and acq_time as sent"
+    },
+    {
+      "name": "acq_time",
+      "type": "TIMESTAMP",
+      "mode": "NULLABLE",
+      "description": "Acquisition time, UTC (minute precision)"
+    },
+    {
+      "name": "acq_date_kyiv",
+      "type": "DATE",
+      "mode": "NULLABLE",
+      "description": "Calendar date of acq_time in Europe/Kyiv (gold aggregation day)"
+    },
+    {
+      "name": "latitude",
+      "type": "FLOAT64",
+      "mode": "NULLABLE",
+      "description": "Pixel center latitude"
+    },
+    {
+      "name": "longitude",
+      "type": "FLOAT64",
+      "mode": "NULLABLE",
+      "description": "Pixel center longitude"
+    },
+    {
+      "name": "h3_r7",
+      "type": "INT64",
+      "mode": "NULLABLE",
+      "description": "H3 cell, resolution 7 (about 5.2 km2)"
+    },
+    {
+      "name": "h3_r9",
+      "type": "INT64",
+      "mode": "NULLABLE",
+      "description": "H3 cell, resolution 9 (about 0.1 km2); not for publishing"
+    },
+    {
+      "name": "satellite",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Satellite, from the FIRMS source id"
+    },
+    {
+      "name": "product",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "sp (Standard Processing) or nrt (Near Real-Time), from version"
+    },
+    {
+      "name": "collection",
+      "type": "INT64",
+      "mode": "NULLABLE",
+      "description": "VIIRS collection, from version"
+    },
+    {
+      "name": "pass_id",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Overpass: satellite and first acq_time of the pass (gap > 20 min starts a new one)"
+    },
+    {
+      "name": "bright_ti4",
+      "type": "FLOAT64",
+      "mode": "NULLABLE",
+      "description": "I-4 brightness temperature, K"
+    },
+    {
+      "name": "bright_ti5",
+      "type": "FLOAT64",
+      "mode": "NULLABLE",
+      "description": "I-5 brightness temperature, K"
+    },
+    {
+      "name": "frp",
+      "type": "FLOAT64",
+      "mode": "NULLABLE",
+      "description": "Fire radiative power, MW"
+    },
+    {
+      "name": "scan",
+      "type": "FLOAT64",
+      "mode": "NULLABLE",
+      "description": "Along-scan pixel size, km"
+    },
+    {
+      "name": "track",
+      "type": "FLOAT64",
+      "mode": "NULLABLE",
+      "description": "Along-track pixel size, km"
+    },
+    {
+      "name": "pixel_area_km2",
+      "type": "FLOAT64",
+      "mode": "NULLABLE",
+      "description": "scan x track"
+    },
+    {
+      "name": "confidence",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "From FIRMS l/n/h"
+    },
+    {
+      "name": "daynight",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "From FIRMS D/N"
+    },
+    {
+      "name": "type",
+      "type": "INT64",
+      "mode": "NULLABLE",
+      "description": "SP only (null for NRT): 0 vegetation, 1 volcano, 2 static land, 3 offshore"
+    },
+    {
+      "name": "in_ukraine",
+      "type": "BOOL",
+      "mode": "NULLABLE",
+      "description": "Inside the border polygon"
+    },
+    {
+      "name": "border_distance_km",
+      "type": "FLOAT64",
+      "mode": "NULLABLE",
+      "description": "Distance to the border polygon, 0 inside"
+    },
+    {
+      "name": "is_persistent_hotspot",
+      "type": "BOOL",
+      "mode": "NULLABLE",
+      "description": "h3_r9 cell active on many of the previous 365 days"
+    },
+    {
+      "name": "is_preferred",
+      "type": "BOOL",
+      "mode": "NULLABLE",
+      "description": "Use this row: SP if the satellite has SP that day, else NRT"
+    },
+    {
+      "name": "flag_invalid_brightness",
+      "type": "BOOL",
+      "mode": "NULLABLE",
+      "description": "bright_ti4 or bright_ti5 is <= 0 K (a FIRMS fill value, not a temperature); kept, not dropped"
+    },
+    {
+      "name": "source",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "FIRMS source id"
+    },
+    {
+      "name": "fetched_at",
+      "type": "TIMESTAMP",
+      "mode": "NULLABLE",
+      "description": "Request time of the bronze response"
+    },
+    {
+      "name": "run_id",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Dagster run that built the partition"
+    }
+  ]
+}

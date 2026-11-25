@@ -1,0 +1,112 @@
+{
+  "layer": "bronze",
+  "table": "firms_viirs",
+  "version": 1,
+  "path": "firms_viirs/v1",
+  "hive_keys": "{source:STRING}/{acq_date:STRING}",
+  "description": "Raw FIRMS VIIRS detections: every API column as a string, then lineage and partition columns. Nothing is parsed on purpose (`acq_time` arrives unpadded, `\"34\"` means 00:34). Typing happens in silver.",
+  "schema": [
+    {
+      "name": "latitude",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Pixel center latitude"
+    },
+    {
+      "name": "longitude",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Pixel center longitude"
+    },
+    {
+      "name": "bright_ti4",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "I-4 brightness temperature, K"
+    },
+    {
+      "name": "scan",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Along-scan pixel size, km"
+    },
+    {
+      "name": "track",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Along-track pixel size, km"
+    },
+    {
+      "name": "acq_time",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Acquisition time, UTC, HHMM, leading zeros may be missing"
+    },
+    {
+      "name": "satellite",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Satellite code as sent by the API"
+    },
+    {
+      "name": "instrument",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Instrument, VIIRS"
+    },
+    {
+      "name": "confidence",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Categorical l/n/h for VIIRS"
+    },
+    {
+      "name": "version",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Product version, e.g. 2.0NRT"
+    },
+    {
+      "name": "bright_ti5",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "I-5 brightness temperature, K"
+    },
+    {
+      "name": "frp",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Fire radiative power, MW"
+    },
+    {
+      "name": "daynight",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "D or N"
+    },
+    {
+      "name": "type",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Detection type (SP only; null in NRT): 0 vegetation fire, 1 volcano, 2 other static land, 3 offshore"
+    },
+    {
+      "name": "day_range",
+      "type": "INT64",
+      "mode": "NULLABLE",
+      "description": "Number of days requested"
+    },
+    {
+      "name": "requested_at",
+      "type": "TIMESTAMP",
+      "mode": "NULLABLE",
+      "description": "Request time, UTC"
+    },
+    {
+      "name": "start_date",
+      "type": "DATE",
+      "mode": "NULLABLE",
+      "description": "First day requested"
+    }
+  ]
+}

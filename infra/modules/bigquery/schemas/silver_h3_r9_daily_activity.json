@@ -1,0 +1,22 @@
+{
+  "layer": "silver",
+  "table": "h3_r9_daily_activity",
+  "version": 1,
+  "path": "h3_r9_daily_activity/v1",
+  "hive_keys": "{acq_date:DATE}",
+  "description": "Preferred detections per H3 r9 cell and UTC day (cells with none are absent); the input of the persistent-hotspot flag.",
+  "schema": [
+    {
+      "name": "h3_r9",
+      "type": "INT64",
+      "mode": "NULLABLE",
+      "description": "H3 cell, resolution 9"
+    },
+    {
+      "name": "detections",
+      "type": "INT64",
+      "mode": "NULLABLE",
+      "description": "Preferred detections in the cell that day"
+    }
+  ]
+}

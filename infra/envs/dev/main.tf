@@ -8,6 +8,8 @@ resource "google_project_service" "apis" {
     "storage.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com", # service account impersonation (Dagster acts as the silver account)
+    "bigquery.googleapis.com",
+    "bigqueryconnection.googleapis.com", # BigLake connection reading the lake buckets
     "secretmanager.googleapis.com",
     "compute.googleapis.com",
     "iap.googleapis.com",
@@ -41,6 +43,21 @@ module "iam" {
   analyst_members = var.analyst_members
 
   depends_on = [google_project_service.apis]
+}
+
+# Bronze and silver queryable from BigQuery as BigLake external tables (no data copied).
+module "bigquery" {
+  source = "../../modules/bigquery"
+
+  project_id      = var.project_id
+  project_name    = var.project_name
+  env             = local.env
+  region          = var.region
+  buckets         = module.storage.bucket_names
+  analyst_members = var.analyst_members
+  labels          = local.labels
+
+  depends_on = [google_project_service.apis, google_project_iam_member.apply]
 }
 
 module "secrets" {
@@ -93,6 +110,7 @@ resource "google_project_iam_member" "apply" {
     "roles/secretmanager.admin",             # MAP_KEY secret container and its IAM (not the secret value)
     "roles/iap.admin",                       # IAP tunnel permission on the VM
     "roles/serviceusage.serviceUsageAdmin",  # enable APIs
+    "roles/bigquery.admin",                  # datasets, external tables, the BigLake connection and their IAM
   ])
 
   project = var.project_id
