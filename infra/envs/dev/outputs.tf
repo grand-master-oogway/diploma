@@ -6,6 +6,14 @@ output "service_accounts" {
   value = module.iam.service_account_emails
 }
 
+output "bigquery" {
+  value = {
+    datasets                   = module.bigquery.datasets
+    tables                     = module.bigquery.tables
+    connection_service_account = module.bigquery.connection_service_account
+  }
+}
+
 output "map_key_secret_id" {
   value = module.secrets.map_key_secret_id
 }
