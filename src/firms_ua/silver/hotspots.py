@@ -11,8 +11,8 @@ from typing import Final
 import polars as pl
 
 WINDOW_DAYS: Final = 365
-# Provisional: a cell active on at least this many of the past 365 days. Set from the distribution in
-# docs/silver_findings.md after profiling bronze.
+# A cell active on at least this many of the past 365 days. In the 2022-2026 bronze profile (docs/silver_findings.json)
+# this marks about 170-310 cells per calendar year out of 110k-215k cells with any detection.
 MIN_ACTIVE_DAYS: Final = 30
 
 

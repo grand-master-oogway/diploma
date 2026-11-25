@@ -38,12 +38,22 @@ class DayCounts:
         return self.bronze_rows == self.superseded + self.duplicates + self.outside_buffer + self.kept
 
 
+def flag_invalid_brightness(df: pl.DataFrame) -> pl.DataFrame:
+    """
+    Add `flag_invalid_brightness`: a brightness temperature of 0 K or less.
+
+    FIRMS sends `bright_ti4` = 0 for a few rows (about 0.1% or fewer in 2022-2026 bronze). That is a fill value, not a
+    measurement, so the row is flagged and left for gold to filter instead of failing the value-range check.
+    """
+    return df.with_columns(((pl.col("bright_ti4") <= 0) | (pl.col("bright_ti5") <= 0)).alias("flag_invalid_brightness"))
+
+
 def prepare_day(bronze: pl.DataFrame, border: Border, buffer_km: float) -> tuple[pl.DataFrame, DayCounts]:
     """
     Type one UTC day of bronze (all sources) and keep the rows silver stores.
 
     Steps: latest response per source, typing, exact-repeat removal, H3 cells, border location, the buffer cut,
-    and the SP-over-NRT preference.
+    the SP-over-NRT preference and the invalid-brightness flag.
 
     Raises:
         DataError: If a bronze value does not parse or a label is unknown.
@@ -51,7 +61,7 @@ def prepare_day(bronze: pl.DataFrame, border: Border, buffer_km: float) -> tuple
     latest = latest_responses(bronze)
     typed, duplicates = drop_repeats(parse_bronze(latest))
     located = locate(add_cells(typed), border)
-    kept = mark_preferred(located.filter(pl.col("border_distance_km") <= buffer_km))
+    kept = flag_invalid_brightness(mark_preferred(located.filter(pl.col("border_distance_km") <= buffer_km)))
     counts = DayCounts(
         bronze_rows=bronze.height,
         superseded=bronze.height - latest.height,
