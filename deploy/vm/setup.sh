@@ -1,7 +1,9 @@
 #!/bin/bash
 # Install a built wheel on the Dagster VM and (re)configure Dagster. Run by the deploy workflow as root; safe to repeat.
 #
-#   sudo bash setup.sh <wheel> <storage_root> <gcp_project> <map_key_secret>
+#   sudo bash setup.sh <wheel> <storage_root> <gcp_project> <map_key_secret> <silver_service_account>
+#
+# The silver assets impersonate <silver_service_account> (the VM's own account cannot read bronze or delete in silver).
 #
 # Needs the base set up by the VM startup script (uv, /opt/firms-ua/venv, /usr/local/sbin/firms-ua-install).
 # Writes:
@@ -10,11 +12,11 @@
 #   dagster-webserver / dagster-daemon   systemd services; the UI listens on 127.0.0.1:3000 only (reach it through an IAP tunnel)
 set -euo pipefail
 
-if [ "$#" -ne 4 ]; then
-  echo "usage: setup.sh <wheel> <storage_root> <gcp_project> <map_key_secret>" >&2
+if [ "$#" -ne 5 ]; then
+  echo "usage: setup.sh <wheel> <storage_root> <gcp_project> <map_key_secret> <silver_service_account>" >&2
   exit 2
 fi
-wheel=$1 storage_root=$2 gcp_project=$3 map_key_secret=$4
+wheel=$1 storage_root=$2 gcp_project=$3 map_key_secret=$4 silver_service_account=$5
 venv=/opt/firms-ua/venv
 dagster_home=/var/lib/firms-ua/dagster
 module=firms_ua.orchestration.definitions
@@ -30,6 +32,7 @@ cat >/etc/firms-ua/env <<ENV
 FIRMS_STORAGE_ROOT=$storage_root
 FIRMS_GCP_PROJECT=$gcp_project
 FIRMS_MAP_KEY_SECRET=$map_key_secret
+FIRMS_SILVER_SERVICE_ACCOUNT=$silver_service_account
 ENV
 chmod 644 /etc/firms-ua/env
 

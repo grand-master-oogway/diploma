@@ -6,6 +6,8 @@ Jobs, schedules and sensors: the ingestion runs on its own, with no manual launc
   retry any day whose run failed.
 - Bronze follows raw through declarative automation: `ingestion_automation` builds bronze for every raw partition that
   was just materialized.
+- Silver follows bronze the same way (`silver_automation`). Its history is built once by a manual backfill of
+  `silver_job` (activity first, then silver; see `orchestration/README.md`).
 """
 
 from datetime import timedelta
@@ -18,6 +20,7 @@ from firms_ua.common.sources import PIPELINE_START, default_catalog
 from firms_ua.orchestration.assets import firms_bronze, firms_raw
 from firms_ua.orchestration.partitions import to_key, to_partitions
 from firms_ua.orchestration.planning import missing_ranges
+from firms_ua.orchestration.silver_assets import firms_h3_activity, firms_silver
 
 # 06:00 UTC leaves several hours after the day's last overpass for NRT to arrive; detections that arrive later are filled
 # in when SP replaces NRT.
@@ -36,6 +39,20 @@ ingest_job: Final = dg.define_asset_job(
 ingestion_automation: Final = dg.AutomationConditionSensorDefinition(
     "ingestion_automation",
     target=dg.AssetSelection.assets(firms_bronze),
+    default_status=dg.DefaultSensorStatus.RUNNING,
+    minimum_interval_seconds=60,
+)
+
+silver_job: Final = dg.define_asset_job(
+    "firms_silver_job",
+    selection=[firms_h3_activity, firms_silver],
+    description="Bronze -> silver (H3 activity, then detections) for the selected days; use it for the history backfill.",
+)
+
+# Rebuilds silver partitions whose bronze (or activity history) changed. Running by default.
+silver_automation: Final = dg.AutomationConditionSensorDefinition(
+    "silver_automation",
+    target=dg.AssetSelection.assets(firms_h3_activity, firms_silver),
     default_status=dg.DefaultSensorStatus.RUNNING,
     minimum_interval_seconds=60,
 )

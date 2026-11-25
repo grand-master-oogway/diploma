@@ -1,5 +1,5 @@
 """
-Partitions of the ingestion assets: one UTC day x one satellite.
+Partitions: ingestion assets use one UTC day x one satellite, silver assets one UTC day.
 """
 
 from collections.abc import Iterable
@@ -20,6 +20,8 @@ ingest_partitions: Final = dg.MultiPartitionsDefinition(
         SATELLITE_DIM: dg.StaticPartitionsDefinition(sorted(default_catalog())),
     }
 )
+
+silver_partitions: Final = dg.DailyPartitionsDefinition(start_date=PIPELINE_START.isoformat(), timezone="UTC")
 
 
 def to_partition(key: str) -> Partition:

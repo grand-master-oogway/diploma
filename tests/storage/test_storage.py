@@ -84,3 +84,33 @@ def test_open_storage_picks_backend(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert (tmp_path / "raw" / "k").is_file()
     monkeypatch.setattr("google.cloud.storage.Client", FakeClient)  # never build a real client in tests
     assert open_storage("gs://firms-ua-dev/", "bronze", "some-project").uri("k") == "gs://firms-ua-dev-bronze/k"
+
+
+def test_impersonation_uses_the_target_account(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    With `impersonate`, the client gets that account's credentials; without it, the client's default ones.
+    """
+    asked: list[str | None] = []
+
+    def fake_credentials(impersonate: str | None) -> str:
+        asked.append(impersonate)
+        return f"creds:{impersonate}"
+
+    monkeypatch.setattr("google.cloud.storage.Client", FakeClient)
+    monkeypatch.setattr("firms_ua.storage.gcs._credentials", fake_credentials)
+    acting = open_storage("gs://firms-ua-dev", "silver", "p", impersonate="silver@p.iam.gserviceaccount.com")
+    plain = open_storage("gs://firms-ua-dev", "silver", "p")
+    assert acting._client.credentials == "creds:silver@p.iam.gserviceaccount.com"  # type: ignore[attr-defined]
+    assert plain._client.credentials is None  # type: ignore[attr-defined]
+    assert asked == ["silver@p.iam.gserviceaccount.com"]
+
+
+def test_delete(store: Storage) -> None:
+    """
+    `delete` removes an object; deleting a missing key raises `FileNotFoundError`.
+    """
+    store.put_new("a/b", b"x")
+    store.delete("a/b")
+    assert not store.exists("a/b")
+    with pytest.raises(FileNotFoundError):
+        store.delete("a/b")

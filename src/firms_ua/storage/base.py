@@ -2,7 +2,8 @@
 The storage interface the pipeline codes against.
 
 Keys are POSIX-style paths inside a layer (for example `firms/source=X/.../requested_at=....csv`). Objects are never overwritten:
-`put_new` fails if the key already exists.
+`put_new` fails if the key already exists. `delete` exists for layers that replace whole partitions (silver, gold); the
+identities of the immutable layers (raw, bronze) have no delete permission.
 """
 
 from typing import Any, Protocol
@@ -22,6 +23,12 @@ class Storage(Protocol):
     def get(self, key: str) -> bytes:
         """
         Return the object's bytes; raise `FileNotFoundError` if it does not exist.
+        """
+        ...
+
+    def delete(self, key: str) -> None:
+        """
+        Remove the object; raise `FileNotFoundError` if it does not exist.
         """
         ...
 

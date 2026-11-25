@@ -45,6 +45,12 @@ class LocalStorage:
         """
         return self._path(key).read_bytes()
 
+    def delete(self, key: str) -> None:
+        """
+        Remove the file; raise `FileNotFoundError` if it does not exist.
+        """
+        self._path(key).unlink()
+
     def exists(self, key: str) -> bool:
         """
         True if the key exists.

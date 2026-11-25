@@ -9,7 +9,7 @@ from firms_ua.storage.gcs import GCS_SCHEME, GcsStorage
 from firms_ua.storage.local import LocalStorage
 
 
-def open_storage(root: str, layer: str, project: str | None = None) -> Storage:
+def open_storage(root: str, layer: str, project: str | None = None, impersonate: str | None = None) -> Storage:
     """
     Open the storage of one medallion layer.
 
@@ -18,7 +18,8 @@ def open_storage(root: str, layer: str, project: str | None = None) -> Storage:
             the layer is appended: `firms-ua-dev-raw`).
         layer: `raw`, `bronze`, `silver`, `gold` or `artifacts`.
         project: GCP project id (only used for `gs://` roots).
+        impersonate: Service account email to act as (only used for `gs://` roots).
     """
     if root.startswith(GCS_SCHEME):
-        return GcsStorage(f"{root.removeprefix(GCS_SCHEME).rstrip('/')}-{layer}", project=project)
+        return GcsStorage(f"{root.removeprefix(GCS_SCHEME).rstrip('/')}-{layer}", project=project, impersonate=impersonate)
     return LocalStorage(Path(root) / layer)

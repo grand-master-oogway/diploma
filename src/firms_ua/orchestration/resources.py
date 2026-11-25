@@ -32,11 +32,11 @@ class FirmsPipeline(dg.ConfigurableResource):
         """
         return Settings()
 
-    def storage(self, settings: Settings, layer: str) -> Storage:
+    def storage(self, settings: Settings, layer: str, *, impersonate: str | None = None) -> Storage:
         """
-        Open one layer's storage.
+        Open one layer's storage, optionally acting as another service account (`impersonate`, an email).
         """
-        return open_storage(settings.storage_root, layer, settings.gcp_project)
+        return open_storage(settings.storage_root, layer, settings.gcp_project, impersonate)
 
     def fetcher(self, settings: Settings) -> Fetcher:
         """

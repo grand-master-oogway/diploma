@@ -112,3 +112,40 @@ def test_scan_without_files_raises(local_store: LocalStorage) -> None:
     assert not Events.has_files(local_store)
     with pytest.raises(FileNotFoundError):
         Events.scan_dataset(local_store)
+
+
+def test_replace_partition_keeps_one_file(store: Storage) -> None:
+    """
+    Replacing a partition writes a new file and deletes the older ones; other partitions are untouched.
+    """
+    Events.write(frame(), store, T1)
+    day = {"day": date(2026, 1, 1)}
+    one_day = frame().filter(pl.col("day") == date(2026, 1, 1)).with_columns(pl.col("value") * 10)
+    key = Events.replace_partition(one_day, store, T2, day, file_metadata={"note": "x"})
+    assert Events.part_files(store, day) == [key]
+    assert pl.read_parquet(io.BytesIO(store.get(key)))["value"].to_list() == [10, 20]
+    assert pl.read_parquet_metadata(io.BytesIO(store.get(key)))["note"] == "x"
+    assert len(Events.part_files(store, {"day": date(2026, 1, 2)})) == 1
+
+
+def test_replace_partition_is_idempotent_and_writes_empty_days(local_store: LocalStorage) -> None:
+    """
+    Two replacements with the same data leave identical content; an empty frame still leaves one (empty) file.
+    """
+    day = {"day": date(2026, 1, 1)}
+    one_day = frame().filter(pl.col("day") == date(2026, 1, 1))
+    Events.replace_partition(one_day, local_store, T1, day)
+    Events.replace_partition(one_day, local_store, T2, day)
+    assert Events.scan_dataset(local_store).collect().equals(one_day)
+    key = Events.replace_partition(one_day.clear(), local_store, T1, day)
+    assert Events.part_files(local_store, day) == [key]
+    assert Events.scan_dataset(local_store).collect().height == 0
+
+
+def test_replace_partition_rejects_rows_of_another_partition(local_store: LocalStorage) -> None:
+    """
+    A frame with rows outside the named partition is refused before anything is written.
+    """
+    with pytest.raises(ValueError, match="do not belong"):
+        Events.replace_partition(frame(), local_store, T1, {"day": date(2026, 1, 1)})
+    assert local_store.list_keys("events/") == []

@@ -1,3 +1,4 @@
 # Keep LF everywhere: scripts that run on Linux (VM startup, Docker, CI) break with Windows line endings.
 * text=auto eol=lf
 *.ps1 text eol=crlf
+*.geojson -text

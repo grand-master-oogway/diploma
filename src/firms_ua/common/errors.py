@@ -20,3 +20,9 @@ class SchemaError(ValueError):
     """
     A dataframe does not match its table definition.
     """
+
+
+class DataError(ValueError):
+    """
+    Input data breaks an expectation: an unknown label, a value that does not parse, an inconsistent row.
+    """

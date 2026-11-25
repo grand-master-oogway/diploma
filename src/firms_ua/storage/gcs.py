@@ -2,6 +2,7 @@
 Storage in a Google Cloud Storage bucket.
 """
 
+from collections.abc import Callable
 from datetime import UTC
 from typing import Any
 
@@ -9,38 +10,66 @@ GCS_SCHEME = "gs://"
 _GCS_SCOPES = ["https://www.googleapis.com/auth/devstorage.read_write"]
 
 
-def _gcp_credentials() -> tuple[dict[str, str], int | None]:
+def _credentials(impersonate: str | None) -> Any:  # noqa: ANN401  (google-auth credentials have no common public type)
     """
-    Return a bearer token from Application Default Credentials and its expiry (epoch seconds) for Polars.
+    Return Application Default Credentials, or credentials of `impersonate` (a service account email) obtained with them.
+
+    Impersonation lets one process act as a stage's own service account (for example `silver`) without a key file.
+    """
+    import google.auth  # noqa: PLC0415
+    from google.auth import impersonated_credentials  # noqa: PLC0415
+
+    source, _ = google.auth.default(scopes=_GCS_SCOPES)
+    if impersonate is None:
+        return source
+    return impersonated_credentials.Credentials(source_credentials=source, target_principal=impersonate, target_scopes=_GCS_SCOPES)
+
+
+def _polars_credentials(impersonate: str | None) -> Callable[[], tuple[dict[str, str], int | None]]:
+    """
+    Return a Polars credential provider: a bearer token and its expiry (epoch seconds).
 
     Polars' own helper needs the system time-zone database, which Windows lacks, so we ask google-auth directly.
     """
-    import google.auth  # noqa: PLC0415
-    from google.auth.transport.requests import Request  # noqa: PLC0415
 
-    credentials, _ = google.auth.default(scopes=_GCS_SCOPES)
-    credentials.refresh(Request())
-    expiry = credentials.expiry.replace(tzinfo=UTC) if credentials.expiry else None
-    return {"bearer_token": credentials.token}, int(expiry.timestamp()) if expiry else None
+    def provide() -> tuple[dict[str, str], int | None]:
+        from google.auth.transport.requests import Request  # noqa: PLC0415
+
+        credentials = _credentials(impersonate)
+        credentials.refresh(Request())
+        expiry = credentials.expiry.replace(tzinfo=UTC) if credentials.expiry else None
+        return {"bearer_token": credentials.token}, int(expiry.timestamp()) if expiry else None
+
+    return provide
 
 
 class GcsStorage:
     """
-    A GCS bucket, accessed with Application Default Credentials.
+    A GCS bucket, accessed with Application Default Credentials (optionally impersonating a service account).
 
     Writes use `if_generation_match=0`, so an existing object is never replaced.
     """
 
-    def __init__(self, bucket: str, client: Any | None = None, project: str | None = None) -> None:  # noqa: ANN401
+    def __init__(
+        self,
+        bucket: str,
+        client: Any | None = None,  # noqa: ANN401
+        project: str | None = None,
+        impersonate: str | None = None,
+    ) -> None:
         """
-        Open `bucket`; `client` is injectable for tests, `project` is the billing/quota project.
+        Open `bucket`.
+
+        `client` is injectable for tests, `project` is the billing/quota project, `impersonate` a service account email
+        to act as (used for both the client and Polars reads).
         """
         if client is None:
             from google.cloud import storage  # noqa: PLC0415  (imported lazily: only needed for gs:// roots)
 
-            client = storage.Client(project=project)
+            client = storage.Client(project=project, credentials=_credentials(impersonate) if impersonate else None)
         self._bucket_name = bucket
         self._client = client
+        self._impersonate = impersonate
 
     def _blob(self, key: str) -> Any:  # noqa: ANN401
         return self._client.bucket(self._bucket_name).blob(key)
@@ -69,6 +98,18 @@ class GcsStorage:
             msg = f"no such object: gs://{self._bucket_name}/{key}"
             raise FileNotFoundError(msg) from None
 
+    def delete(self, key: str) -> None:
+        """
+        Remove the object; raise `FileNotFoundError` if it does not exist.
+        """
+        from google.api_core.exceptions import NotFound  # noqa: PLC0415
+
+        try:
+            self._blob(key).delete()
+        except NotFound:
+            msg = f"no such object: gs://{self._bucket_name}/{key}"
+            raise FileNotFoundError(msg) from None
+
     def exists(self, key: str) -> bool:
         """
         True if the object exists.
@@ -93,4 +134,4 @@ class GcsStorage:
         """
         Let Polars authenticate with Application Default Credentials.
         """
-        return {"credential_provider": _gcp_credentials}
+        return {"credential_provider": _polars_credentials(self._impersonate)}

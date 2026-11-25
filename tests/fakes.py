@@ -36,6 +36,13 @@ class FakeBlob:
             raise NotFound("missing")
         return self._objects[self.name]
 
+    def delete(self) -> None:
+        """
+        Remove the object or raise `NotFound`.
+        """
+        if self._objects.pop(self.name, None) is None:
+            raise NotFound("missing")
+
     def exists(self) -> bool:
         """
         True if the object exists.
@@ -48,11 +55,13 @@ class FakeClient:
     Minimal stand-in for `google.cloud.storage.Client` with one dict per bucket.
     """
 
-    def __init__(self, project: str | None = None) -> None:
+    def __init__(self, project: str | None = None, credentials: object | None = None) -> None:
         """
-        Start with no buckets (`project` is accepted and ignored, like the real client's argument).
+        Start with no buckets; `project` and `credentials` are recorded, like the real client's arguments.
         """
         self.buckets: dict[str, dict[str, bytes]] = {}
+        self.project = project
+        self.credentials = credentials
 
     def bucket(self, name: str) -> SimpleNamespace:
         """
