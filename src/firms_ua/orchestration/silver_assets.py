@@ -214,6 +214,7 @@ def _add_totals(totals: defaultdict[str, int], counts: DayCounts, frame: pl.Data
     totals["dropped_outside_buffer"] += counts.outside_buffer
     totals["rows_in_ukraine"] += int(frame["in_ukraine"].sum())
     totals["rows_preferred"] += int(frame["is_preferred"].sum())
+    totals["rows_invalid_brightness"] += int(frame["flag_invalid_brightness"].sum())
     totals["rows_persistent_hotspot"] += int(frame["is_persistent_hotspot"].sum())
     for product, n in frame.group_by(pl.col("product").cast(pl.String)).len().iter_rows():
         totals[f"rows_{product}"] += n

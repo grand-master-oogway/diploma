@@ -127,3 +127,13 @@ def test_preferred_jump() -> None:
     assert quality.preferred_jump(None, 1.0) == []
     assert quality.preferred_jump(1.0, 0.9) == []
     assert quality.preferred_jump(1.0, 0.2) != []
+
+
+def test_zero_brightness_is_flagged_not_failed() -> None:
+    """
+    A FIRMS fill value of 0 K is flagged and skipped by the range check; other out-of-range brightness still fails.
+    """
+    df = silver_day({"bright_ti4": "0.0"}, {"latitude": "50.2"}, {"latitude": "50.3", "bright_ti4": "150"})
+    flags = dict(zip(df["latitude"].to_list(), df["flag_invalid_brightness"].to_list(), strict=True))
+    assert flags == {50.45: True, 50.2: False, 50.3: False}
+    assert quality.value_ranges(df) == ["bright_ti4: 1 rows outside [200.0, 400.0]"]

@@ -41,6 +41,9 @@ class FirmsSilver(ParquetTable):
     border_distance_km: pl.Float32 = pa.Field(description="Distance to the border polygon, 0 inside")
     is_persistent_hotspot: pl.Boolean = pa.Field(description="h3_r9 cell active on many of the previous 365 days")
     is_preferred: pl.Boolean = pa.Field(description="Use this row: SP if the satellite has SP that day, else NRT")
+    flag_invalid_brightness: pl.Boolean = pa.Field(
+        description="bright_ti4 or bright_ti5 is <= 0 K (a FIRMS fill value, not a temperature); kept, not dropped"
+    )
     source: pl.String = pa.Field(description="FIRMS source id", metadata={"lineage": True})
     fetched_at: pl.Datetime(time_unit="us", time_zone="UTC") = pa.Field(
         description="Request time of the bronze response", metadata={"lineage": True}

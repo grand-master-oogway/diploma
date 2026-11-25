@@ -13,7 +13,9 @@ from firms_ua.common.sources import Satellite, covers
 from firms_ua.silver.build import DayCounts
 
 KEY_COLUMNS: Final = ("detection_id", "acq_time", "latitude", "longitude", "satellite", "product")
-# Inclusive plausible ranges (None: unbounded). First guesses from a bronze sample; tighten after profiling all bronze.
+# Inclusive plausible ranges (None: unbounded), checked against the 2022-02-24..2026-11-24 bronze profile
+# (docs/silver_findings.json): scan 0.32-0.80, track 0.36-0.78, ti5 224.9-385.5, frp from 0. Brightness ranges apply only
+# to rows without `flag_invalid_brightness` (ti4 = 0 occurs as a FIRMS fill value; otherwise ti4 >= 295 K).
 VALUE_RANGES: Final[Mapping[str, tuple[float | None, float | None]]] = MappingProxyType(
     {
         "frp": (0.0, None),
@@ -23,6 +25,7 @@ VALUE_RANGES: Final[Mapping[str, tuple[float | None, float | None]]] = MappingPr
         "bright_ti5": (150.0, 400.0),
     }
 )
+BRIGHTNESS: Final = frozenset({"bright_ti4", "bright_ti5"})
 # A satellite with no rows is suspicious only if another satellite saw at least this many that day.
 GAP_MIN_OTHER_ROWS: Final = 50
 # Warn when the preferred share moves more than this between consecutive days.
@@ -54,7 +57,7 @@ def in_partition(df: pl.DataFrame, day: date) -> list[str]:
 
 def value_ranges(df: pl.DataFrame) -> list[str]:
     """
-    Measurements must lie in `VALUE_RANGES`.
+    Measurements must lie in `VALUE_RANGES`; brightness is not checked on rows flagged `flag_invalid_brightness`.
     """
     problems = []
     for column, (low, high) in VALUE_RANGES.items():
@@ -63,6 +66,8 @@ def value_ranges(df: pl.DataFrame) -> list[str]:
             bad = bad | (pl.col(column) < low)
         if high is not None:
             bad = bad | (pl.col(column) > high)
+        if column in BRIGHTNESS:
+            bad = bad & ~pl.col("flag_invalid_brightness")
         if n := df.filter(bad).height:
             problems.append(f"{column}: {n} rows outside [{low}, {high}]")
     return problems
